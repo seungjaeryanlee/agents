@@ -719,3 +719,20 @@ class HistoryWrapper(PyEnvironmentBaseWrapper):
 
     time_step = self._env.step(action)
     return self._add_history(time_step, action)
+
+
+class DoubleReward(PyEnvironmentBaseWrapper):
+  """Double all reward signals."""
+
+  def __init__(self, env):
+    super(DoubleReward, self).__init__(env)
+
+  def _reset(self):
+    return self._env.reset()
+
+  def _step(self, action):
+    time_step = self._env.step(action)
+    reward = np.multiply(time_step.reward, 2, dtype=np.float32)
+    time_step = time_step._replace(reward=reward)
+
+    return time_step
