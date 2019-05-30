@@ -721,18 +721,20 @@ class HistoryWrapper(PyEnvironmentBaseWrapper):
     return self._add_history(time_step, action)
 
 
-class DoubleReward(PyEnvironmentBaseWrapper):
-  """Double all reward signals."""
+class RewardClipWrapper(PyEnvironmentBaseWrapper):
+  """Clip all reward signals to a specified [min, max]."""
 
-  def __init__(self, env):
-    super(DoubleReward, self).__init__(env)
+  def __init__(self, env, min_r=-1, max_r=1):
+    super(RewardClipWrapper, self).__init__(env)
+    self.min_r = min_r
+    self.max_r = max_r
 
   def _reset(self):
     return self._env.reset()
 
   def _step(self, action):
     time_step = self._env.step(action)
-    reward = np.multiply(time_step.reward, 2, dtype=np.float32)
+    reward = np.clip(reward, self.min_r, max_r)
     time_step = time_step._replace(reward=reward)
 
     return time_step
