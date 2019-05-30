@@ -117,7 +117,8 @@ def train_eval(
   global_step = tf.compat.v1.train.get_or_create_global_step()
   with tf.compat.v2.summary.record_if(
       lambda: tf.math.equal(global_step % summary_interval, 0)):
-    tf_env = tf_py_environment.TFPyEnvironment(suite_gym.load(env_name, env_wrappers=[wrappers.RewardClipWrapper]))
+    gin.parse_config_file('tf_agents/environments/configs/reward_clip.gin')
+    tf_env = tf_py_environment.TFPyEnvironment(suite_gym.load())
     eval_py_env = suite_gym.load(env_name)
 
     q_net = q_network.QNetwork(

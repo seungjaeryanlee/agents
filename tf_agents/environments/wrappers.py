@@ -721,10 +721,11 @@ class HistoryWrapper(PyEnvironmentBaseWrapper):
     return self._add_history(time_step, action)
 
 
+@gin.configurable
 class RewardClipWrapper(PyEnvironmentBaseWrapper):
   """Clip all reward signals to a specified [min, max]."""
 
-  def __init__(self, env, min_r=-1, max_r=1):
+  def __init__(self, env, min_r=-0.5, max_r=0.5):
     super(RewardClipWrapper, self).__init__(env)
     self.min_r = min_r
     self.max_r = max_r
@@ -734,7 +735,7 @@ class RewardClipWrapper(PyEnvironmentBaseWrapper):
 
   def _step(self, action):
     time_step = self._env.step(action)
-    reward = np.clip(reward, self.min_r, max_r)
+    reward = np.clip(time_step.reward, self.min_r, self.max_r)
     time_step = time_step._replace(reward=reward)
 
     return time_step
