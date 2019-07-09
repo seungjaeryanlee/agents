@@ -132,6 +132,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
                use_gae=False,
                use_td_lambda_return=False,
                normalize_rewards=True,
+               rnd_normalize_rewards=False,
                reward_norm_clipping=10.0,
                normalize_observations=True,
                log_prob_clipping=0.0,
@@ -181,6 +182,8 @@ class RNDPPOAgent(tf_agent.TFAgent):
         value_predictions)
       normalize_rewards: If true, keeps moving variance of rewards and
         normalizes incoming rewards.
+      rnd_normalize_rewards: If true, keeps moving variance of rewards and
+        normalizes incoming intrinsic rewards.
       reward_norm_clipping: Value above an below to clip normalized reward.
       normalize_observations: If true, keeps moving mean and variance of
         observations and normalizes incoming observations.
@@ -253,6 +256,12 @@ class RNDPPOAgent(tf_agent.TFAgent):
     if normalize_rewards:
       self._reward_normalizer = tensor_normalizer.StreamingTensorNormalizer(
           tensor_spec.TensorSpec([], tf.float32), scope='normalize_reward')
+
+    self._rnd_reward_normalizer = None
+    if rnd_normalize_rewards:
+      # TODO(seungjaeryanlee): Check if normalization method fits that of RND
+      self._rnd_reward_normalizer = tensor_normalizer.StreamingTensorNormalizer(
+          tensor_spec.TensorSpec([], tf.float32), scope='normalize_rnd_reward')
 
     self._observation_normalizer = None
     if normalize_observations:
@@ -443,6 +452,8 @@ class RNDPPOAgent(tf_agent.TFAgent):
       # Summarize rewards before they get normalized below.
       tf.compat.v2.summary.histogram(
           name='rewards', data=rewards, step=self.train_step_counter)
+      tf.compat.v2.summary.histogram(
+          name='rnd_rewards', data=intrinsic_rewards, step=self.train_step_counter)
 
     # Normalize rewards if self._reward_normalizer is defined.
     if self._reward_normalizer:
@@ -452,6 +463,17 @@ class RNDPPOAgent(tf_agent.TFAgent):
         tf.compat.v2.summary.histogram(
             name='rewards_normalized',
             data=rewards,
+            step=self.train_step_counter)
+
+    # Normalize intrinsic rewards if self._rnd_reward_normalizer is defined.
+    if self._rnd_reward_normalizer:
+      # TODO(seungjaeryanlee): Check normalization parameters
+      intrinsic_rewards = self._rnd_reward_normalizer.normalize(
+          intrinsic_rewards, center_mean=False, clip_value=self._reward_norm_clipping)
+      if self._debug_summaries:
+        tf.compat.v2.summary.histogram(
+            name='rnd_rewards_normalized',
+            data=intrinsic_rewards,
             step=self.train_step_counter)
 
     # Make discount 0.0 at end of each episode to restart cumulative sum
@@ -538,7 +560,6 @@ class RNDPPOAgent(tf_agent.TFAgent):
     # TODO(seungjaeryanlee): Debug summaries...?
     rnd_losses, avg_rnd_loss = self.rnd_loss(time_steps, debug_summaries=False)
 
-    # TODO(seungjaeryanlee): Use avg_rnd_loss
     returns, normalized_advantages = self.compute_return_and_advantage(
         next_time_steps, value_preds, intrinsic_rewards=avg_rnd_loss)
 
@@ -626,6 +647,9 @@ class RNDPPOAgent(tf_agent.TFAgent):
       if self._reward_normalizer:
         self._reward_normalizer.update(next_time_steps.reward,
                                        outer_dims=[0, 1])
+      if self._rnd_reward_normalizer:
+        self._rnd_reward_normalizer.update(intrinsic_rewards,
+                                           outer_dims=[0, 1])
 
     loss_info = tf.nest.map_structure(tf.identity, loss_info)
 
