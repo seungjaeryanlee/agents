@@ -151,8 +151,7 @@ def train_eval(
     rnd_net = encoding_network.EncodingNetwork(
         tf_env.observation_spec(),
         fc_layer_params=fc_layer_params,
-        # TODO(seungjaeryanlee) Wrong name: should be 'PredictorRNDNetwork'?
-        name='RNDTargetNetwork')
+        name='PredictorRNDNetwork')
 
     # TODO(b/127301657): Decay epsilon based on global step, cf. cl/188907839
     tf_agent = rnddqn_agent.RndDqnAgent(
