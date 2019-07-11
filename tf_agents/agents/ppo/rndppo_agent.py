@@ -468,6 +468,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
     # Normalize intrinsic rewards if self._rnd_reward_normalizer is defined.
     if self._rnd_reward_normalizer:
       # TODO(seungjaeryanlee): Check normalization parameters
+      # TODO(seungjaeryanlee): This normalization should happen before adding intrinsic reward?
       intrinsic_rewards = self._rnd_reward_normalizer.normalize(
           intrinsic_rewards, center_mean=False, clip_value=self._reward_norm_clipping)
       if self._debug_summaries:
