@@ -72,11 +72,12 @@ class BehavioralCloningAgent(tf_agent.TFAgent):
       action_spec,
       cloning_network,
       optimizer,
-      epsilon_greedy=0.1,
+      num_outer_dims=1,
       # Params for training.
+      epsilon_greedy=0.1,
       loss_fn=None,
       gradient_clipping=None,
-      # Params for debugging
+      # Params for debugging.
       debug_summaries=False,
       summarize_grads_and_vars=False,
       train_step_counter=None,
@@ -100,6 +101,10 @@ class BehavioralCloningAgent(tf_agent.TFAgent):
         `cloning_network` has an empty network state, then for training
         `time` will always be `1` (individual examples).
       optimizer: The optimizer to use for training.
+      num_outer_dims: The number of outer dimensions for the agent. Must be
+        either 1 or 2. If 2, training will require both a batch_size and time
+        dimension on every Tensor; if 1, training will require only a batch_size
+        outer dimension.
       epsilon_greedy: probability of choosing a random action in the default
         epsilon-greedy collect policy (used only if a wrapper is not provided to
         the collect_policy method).
@@ -128,7 +133,8 @@ class BehavioralCloningAgent(tf_agent.TFAgent):
         under that name. Defaults to the class name.
 
     Raises:
-      NotImplementedError: If the action spec contains more than one action.
+      ValueError: If `action_spec` contains more than one action, but a custom
+        `loss_fn` is not provided.
     """
     tf.Module.__init__(self, name=name)
 
@@ -137,11 +143,11 @@ class BehavioralCloningAgent(tf_agent.TFAgent):
         spec.maximum - spec.minimum + 1 for spec in flat_action_spec
     ]
 
-    # TODO(oars): Get behavioral cloning working with more than one dim in
-    # the actions.
-    if len(flat_action_spec) > 1:
-      raise NotImplementedError(
-          'Multi-arity actions are not currently supported.')
+    if len(flat_action_spec) > 1 and not loss_fn:
+      raise ValueError('When using multi-dimensional actions, a custom loss_fn '
+                       'must be provided.')
+
+    self._multi_dimensional_actions = len(flat_action_spec) > 1
 
     if loss_fn is None:
       loss_fn = self._get_default_loss_fn(flat_action_spec[0])
@@ -161,6 +167,7 @@ class BehavioralCloningAgent(tf_agent.TFAgent):
         policy,
         collect_policy,
         train_sequence_length=1 if not cloning_network.state_spec else None,
+        num_outer_dims=num_outer_dims,
         debug_summaries=debug_summaries,
         summarize_grads_and_vars=summarize_grads_and_vars,
         train_step_counter=train_step_counter)
@@ -231,13 +238,19 @@ class BehavioralCloningAgent(tf_agent.TFAgent):
         If the number of actions is greater than 1.
     """
     with tf.name_scope('loss'):
-      actions = tf.nest.flatten(experience.action)[0]
+      if self._multi_dimensional_actions:
+        actions = experience.action
+      else:
+        actions = tf.nest.flatten(experience.action)[0]
+
       logits, _ = self._cloning_network(
           experience.observation,
           experience.step_type)
 
-      boundary_weights = tf.cast(~experience.is_boundary(), logits.dtype)
-      error = boundary_weights * self._loss_fn(logits, actions)
+      error = self._loss_fn(logits, actions)
+      error_dtype = tf.nest.flatten(error)[0].dtype
+      boundary_weights = tf.cast(~experience.is_boundary(), error_dtype)
+      error *= boundary_weights
 
       if nest_utils.is_batched_nested_tensors(
           experience.action, self.action_spec, num_outer_dims=2):
