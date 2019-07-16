@@ -59,16 +59,16 @@ from tf_agents.utils import common
 flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
                     'Root directory for writing logs/summaries/checkpoints.')
 flags.DEFINE_string('env_name', 'LunarLander-v2', 'Name of an environment')
-flags.DEFINE_integer('replay_buffer_capacity', 1001,
+flags.DEFINE_integer('replay_buffer_capacity', 128,
                      'Replay buffer capacity per env.')
-flags.DEFINE_integer('num_parallel_environments', 30,
+flags.DEFINE_integer('num_parallel_environments', 16,
                      'Number of environments to run in parallel')
-flags.DEFINE_integer('num_environment_steps', 10000000,
+flags.DEFINE_integer('num_environment_steps', 2000000000,
                      'Number of environment steps to run before finishing.')
-flags.DEFINE_integer('num_epochs', 25,
+flags.DEFINE_integer('num_epochs', 4,
                      'Number of epochs for computing policy updates.')
 flags.DEFINE_integer(
-    'collect_episodes_per_iteration', 30,
+    'collect_episodes_per_iteration', 16,
     'The number of episodes to take in the environment before '
     'each update. This is the total across all parallel '
     'environments.')
@@ -78,11 +78,10 @@ flags.DEFINE_boolean('use_rnns', False,
                      'If true, use RNN for policy and value function.')
 FLAGS = flags.FLAGS
 
-
 @gin.configurable
 def train_eval(
     root_dir,
-    env_name='LunarLander-v2',
+    env_name='Venture-v0',
     env_load_fn=suite_gym.load,
     random_seed=0,
     # TODO(b/127576522): rename to policy_fc_layers.
@@ -90,12 +89,12 @@ def train_eval(
     value_fc_layers=(200, 100),
     use_rnns=False,
     # Params for collect
-    num_environment_steps=10000000,
+    num_environment_steps=2000000000,
     collect_episodes_per_iteration=16,
-    num_parallel_environments=4,
-    replay_buffer_capacity=1001,  # Per-environment
+    num_parallel_environments=16,
+    replay_buffer_capacity=128,  # Per-environment
     # Params for train
-    num_epochs=16,
+    num_epochs=4,
     learning_rate=1e-4,
     # Params for eval
     num_eval_episodes=30,
