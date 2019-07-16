@@ -1,0 +1,36 @@
+#-*-Python-*-
+import tf_agents.environments.suite_gym
+import tf_agents.agents.ppo.rndppo_agent
+import tf_agents.agents.ppo.examples.v2.train_eval_rnd.train_eval
+
+## Configure Environment
+ENVIRONMENT = @suite_gym.load()
+suite_gym.load.environment_name = %ENVIRONMENT_NAME
+# Note: The ENVIRONMENT_NAME can be overridden by passing the command line flag:
+# --params="ENVIRONMENT_NAME='Venture-v0'"
+ENVIRONMENT_NAME = 'Venture-v0'
+
+## Configure Hyperparameters
+# Extrinsic reward clipping: [-1, 1]
+rndppo_agent.reward_norm_clipping = 1.0
+# Number of parallel environments: 16
+train_eval.num_parallel_environments = 16
+# Rollout length: 128
+train_eval.replay_buffer_capacity = 128
+# TODO Total number of rollouts per env: 30K
+num_environment_steps = 2000000000
+# TODO Number of minibatches
+
+# Number of Epochs: 4
+train_eval.num_epochs = 4
+rndppo_agent.num_epochs = 4
+# GAE
+rndppo_agent.use_gae = True
+rndppo_agent.use_td_lambda_return = True
+lambda_value = 0.95
+# Entropy coefficient: 0.001
+rndppo_agent.entropy_regularization = 0.001
+# PPO-clip
+rndppo_agent.importance_ratio_clipping = 0.1
+# PPO-penalty
+rndppo_agent.initial_adaptive_kl_beta = 0
