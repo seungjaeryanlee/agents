@@ -380,9 +380,6 @@ class RNDPPOAgent(tf_agent.TFAgent):
     # TODO(eholly): Rename policy distributions to something clear and uniform.
     current_policy_distribution = distribution_step.action
 
-    rnd_losses, avg_rnd_loss = self.rnd_loss(time_steps, debug_summaries)
-    # TODO(seungjaeryanlee): Modify `time_steps` or give intrinsic rewards (=RND loss) as parameter
-
     # Call all loss functions and add all loss values.
     value_estimation_loss = self.value_estimation_loss(time_steps, returns,
                                                        weights, debug_summaries)
@@ -410,6 +407,9 @@ class RNDPPOAgent(tf_agent.TFAgent):
         time_steps, action_distribution_parameters, current_policy_distribution,
         weights, debug_summaries)
 
+    rnd_losses, avg_rnd_loss = self.rnd_loss(time_steps, debug_summaries)
+
+    # TODO(seungjaeryanlee): Should rnd_loss be added to total_loss?
     total_loss = (
         policy_gradient_loss + value_estimation_loss + l2_regularization_loss +
         entropy_regularization_loss + kl_penalty_loss)
@@ -599,7 +599,6 @@ class RNDPPOAgent(tf_agent.TFAgent):
         rnd_grads = tape.gradient(loss_info.extra.avg_rnd_loss, rnd_variables_to_train)
         # Tuple is used for py3, where zip is a generator producing values once.
         rnd_grads_and_vars = tuple(zip(rnd_grads, rnd_variables_to_train))
-        # TODO(seungjaeryanlee): Should I create self._rnd_gradient_clipping?
 
         # If summarize_gradients, create functions for summarizing both
         # gradients and variables.
