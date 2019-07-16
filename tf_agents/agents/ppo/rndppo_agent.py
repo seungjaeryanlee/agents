@@ -555,14 +555,11 @@ class RNDPPOAgent(tf_agent.TFAgent):
     else:
       weights *= valid_mask
 
-    # TODO(seungjaeryanlee): Should RND loss be recalculated for every epoch?
-    #                        If so, returns and normalized advantages should also be recalculated at every epoch.
-    # TODO(seungjaeryanlee): If calculated here, no need to recompute in get_epoch_loss()
-    # TODO(seungjaeryanlee): Debug summaries...?
-    rnd_losses, avg_rnd_loss = self.rnd_loss(time_steps, debug_summaries=False)
+    # Compute intrinsic reward via RND
+    _, intrinsic_rewards = self.rnd_loss(time_steps, debug_summaries=self._debug_summaries)
 
     returns, normalized_advantages = self.compute_return_and_advantage(
-        next_time_steps, value_preds, intrinsic_rewards=avg_rnd_loss)
+        next_time_steps, value_preds, intrinsic_rewards=intrinsic_rewards)
 
     # Loss tensors across batches will be aggregated for summaries.
     policy_gradient_losses = []
