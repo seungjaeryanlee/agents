@@ -661,7 +661,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
       total_entropy_regularization_loss = tf.add_n(
           entropy_regularization_losses)
       total_kl_penalty_loss = tf.add_n(kl_penalty_losses)
-      total_rnd_loss = tf.add_n(avg_rnd_losses)
+
       tf.compat.v2.summary.scalar(
           name='policy_gradient_loss',
           data=total_policy_gradient_loss,
@@ -684,8 +684,8 @@ class RNDPPOAgent(tf_agent.TFAgent):
           data=total_kl_penalty_loss,
           step=self.train_step_counter)
       tf.compat.v2.summary.scalar(
-          name='rnd_loss',
-          data=total_rnd_loss,
+          name='avg_rnd_loss',
+          data=tf.add_n(avg_rnd_losses) / len(avg_rnd_losses),
           step=self.train_step_counter)
 
       # TODO(seungjaeryanlee) Should RND loss be added here?
