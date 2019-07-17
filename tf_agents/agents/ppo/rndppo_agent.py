@@ -140,7 +140,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
                adaptive_kl_tolerance=0.3,
                gradient_clipping=None,
                # RND Parameters
-               use_rnd=False,
+               use_rnd=True,
                rnd_network=None,
                rnd_optimizer=None,
                rnd_loss_fn=None,
@@ -467,17 +467,6 @@ class RNDPPOAgent(tf_agent.TFAgent):
         self._discount_factor, dtype=tf.float32)
 
     rewards = next_time_steps.reward
-    # Add intrinsic rewards
-    if self._use_rnd:
-      if intrinsic_rewards is not None:
-        rewards = (self._rnd_ext_reward_factor * rewards
-                   + self._rnd_int_reward_factor * intrinsic_rewards)
-      if self._debug_summaries:
-        # Summarize rewards before they get normalized below.
-        tf.compat.v2.summary.histogram(
-            name='rewards', data=rewards, step=self.train_step_counter)
-        tf.compat.v2.summary.histogram(
-            name='rnd_rewards', data=intrinsic_rewards, step=self.train_step_counter)
 
     # Normalize rewards if self._reward_normalizer is defined.
     if self._reward_normalizer:
@@ -499,6 +488,18 @@ class RNDPPOAgent(tf_agent.TFAgent):
             name='rnd_rewards_normalized',
             data=intrinsic_rewards,
             step=self.train_step_counter)
+
+    # Add intrinsic rewards
+    if self._use_rnd:
+      if intrinsic_rewards is not None:
+        rewards = (self._rnd_ext_reward_factor * rewards
+                   + self._rnd_int_reward_factor * intrinsic_rewards)
+      if self._debug_summaries:
+        # Summarize rewards before they get normalized below.
+        tf.compat.v2.summary.histogram(
+            name='rewards', data=rewards, step=self.train_step_counter)
+        tf.compat.v2.summary.histogram(
+            name='rnd_rewards', data=intrinsic_rewards, step=self.train_step_counter)
 
     # Make discount 0.0 at end of each episode to restart cumulative sum
     #   end of each episode.
