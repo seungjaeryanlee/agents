@@ -423,7 +423,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
         entropy_regularization_loss + kl_penalty_loss)
 
     if self._use_rnd:
-      rnd_losses, avg_rnd_loss = self.rnd_loss(time_steps, debug_summaries)
+      rnd_losses, avg_rnd_loss = self.rnd_loss(time_steps, debug_summaries=debug_summaries)
       return tf_agent.LossInfo(
           total_loss,
           RNDPPOLossInfo(
