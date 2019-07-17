@@ -148,7 +148,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
                rnd_ext_reward_factor=2,
                rnd_int_reward_factor=1,
                check_numerics=False,
-               debug_summaries=False,
+               debug_summaries=True,
                summarize_grads_and_vars=False,
                train_step_counter=None,
                name=None):
@@ -418,7 +418,6 @@ class RNDPPOAgent(tf_agent.TFAgent):
         time_steps, action_distribution_parameters, current_policy_distribution,
         weights, debug_summaries)
 
-    # TODO(seungjaeryanlee): Should rnd_loss be added to total_loss?
     total_loss = (
         policy_gradient_loss + value_estimation_loss + l2_regularization_loss +
         entropy_regularization_loss + kl_penalty_loss)
@@ -468,6 +467,14 @@ class RNDPPOAgent(tf_agent.TFAgent):
 
     rewards = next_time_steps.reward
 
+    # Summarize rewards before they get normalized below.
+    if self._debug_summaries:
+      tf.compat.v2.summary.histogram(
+          name='rewards', data=rewards, step=self.train_step_counter)
+      if self._use_rnd:
+        tf.compat.v2.summary.histogram(
+            name='rnd_rewards', data=intrinsic_rewards, step=self.train_step_counter)
+
     # Normalize rewards if self._reward_normalizer is defined.
     if self._reward_normalizer:
       rewards = self._reward_normalizer.normalize(
@@ -493,12 +500,6 @@ class RNDPPOAgent(tf_agent.TFAgent):
       if intrinsic_rewards is not None:
         rewards = (self._rnd_ext_reward_factor * rewards
                    + self._rnd_int_reward_factor * intrinsic_rewards)
-      if self._debug_summaries:
-        # Summarize rewards before they get normalized below.
-        tf.compat.v2.summary.histogram(
-            name='rewards', data=rewards, step=self.train_step_counter)
-        tf.compat.v2.summary.histogram(
-            name='rnd_rewards', data=intrinsic_rewards, step=self.train_step_counter)
 
     # Make discount 0.0 at end of each episode to restart cumulative sum
     #   end of each episode.
