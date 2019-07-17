@@ -145,6 +145,8 @@ class RNDPPOAgent(tf_agent.TFAgent):
                rnd_optimizer=None,
                rnd_loss_fn=None,
                rnd_normalize_rewards=True,
+               rnd_ext_reward_factor=2,
+               rnd_int_reward_factor=1,
                check_numerics=False,
                debug_summaries=False,
                summarize_grads_and_vars=False,
@@ -291,6 +293,8 @@ class RNDPPOAgent(tf_agent.TFAgent):
       self._target_rnd_network = self._rnd_network.copy(name='TargetRNDNetwork')
       self._rnd_optimizer = rnd_optimizer
       self._rnd_loss_fn = rnd_loss_fn or mean_squared_loss
+      self._rnd_ext_reward_factor = rnd_ext_reward_factor
+      self._rnd_int_reward_factor = rnd_int_reward_factor
 
       self._rnd_reward_normalizer = None
       if rnd_normalize_rewards:
@@ -467,7 +471,8 @@ class RNDPPOAgent(tf_agent.TFAgent):
     # Add intrinsic rewards
     if self._use_rnd:
       if intrinsic_rewards is not None:
-        rewards += intrinsic_rewards
+        rewards = (self._rnd_ext_reward_factor * rewards
+                   + self._rnd_int_reward_factor * intrinsic_rewards)
       if self._debug_summaries:
         # Summarize rewards before they get normalized below.
         tf.compat.v2.summary.histogram(
