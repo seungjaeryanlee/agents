@@ -28,10 +28,10 @@ python tf_agents/agents/ppo/examples/v2/train_eval_rnd.py \
 To run on Atari Venture:
 
 ```bash
-tensorboard --logdir $HOME/tmp/rndppo/gym/VentureNoFrameskip-v4/ --port 2223 &
+tensorboard --logdir $HOME/tmp/rndppo/gym/VentureDeterministic-v0/ --port 2223 &
 
 python tf_agents/agents/ppo/examples/v2/train_eval_rnd.py \
-  --root_dir=$HOME/tmp/rndppo/gym/VentureNoFrameskip-v4/ \
+  --root_dir=$HOME/tmp/rndppo/gym/VentureDeterministic-v0/ \
   --logtostderr
 ```
 """
@@ -55,6 +55,7 @@ from tf_agents.drivers import dynamic_episode_driver
 from tf_agents.environments import parallel_py_environment
 from tf_agents.environments import tf_py_environment
 from tf_agents.environments import suite_gym
+from tf_agents.environments import suite_atari
 from tf_agents.environments.atari_preprocessing import AtariPreprocessing
 from tf_agents.environments.atari_wrappers import FrameStack4
 from tf_agents.eval import metric_utils
@@ -70,7 +71,7 @@ from tf_agents.utils import common
 
 flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
                     'Root directory for writing logs/summaries/checkpoints.')
-flags.DEFINE_string('env_name', 'LunarLander-v2', 'Name of an environment')
+flags.DEFINE_string('env_name', 'VentureDeterministic-v0', 'Name of an environment')
 flags.DEFINE_integer('replay_buffer_capacity', 128,
                      'Replay buffer capacity per env.')
 flags.DEFINE_integer('num_parallel_environments', 16,
@@ -93,7 +94,7 @@ FLAGS = flags.FLAGS
 @gin.configurable
 def train_eval(
     root_dir,
-    env_name='LunarLander-v2',
+    env_name='VentureDeterministic-v0',
     env_load_fn=suite_gym.load,
     random_seed=0,
     # TODO(b/127576522): rename to policy_fc_layers.
@@ -141,14 +142,14 @@ def train_eval(
   with tf.compat.v2.summary.record_if(
       lambda: tf.math.equal(global_step % summary_interval, 0)):
     tf.compat.v1.set_random_seed(random_seed)
-    eval_tf_env = tf_py_environment.TFPyEnvironment(env_load_fn(env_name))
-    tf_env = tf_py_environment.TFPyEnvironment(
-        parallel_py_environment.ParallelPyEnvironment(
-            [lambda: env_load_fn(env_name)] * num_parallel_environments))
-    # eval_tf_env = tf_py_environment.TFPyEnvironment(env_load_fn(env_name, gym_env_wrappers=(FrameStack4, AtariPreprocessing)))
+    # eval_tf_env = tf_py_environment.TFPyEnvironment(env_load_fn(env_name))
     # tf_env = tf_py_environment.TFPyEnvironment(
     #     parallel_py_environment.ParallelPyEnvironment(
-    #         [lambda: env_load_fn(env_name, gym_env_wrappers=(FrameStack4, AtariPreprocessing))] * num_parallel_environments))
+    #         [lambda: env_load_fn(env_name)] * num_parallel_environments))
+    eval_tf_env = tf_py_environment.TFPyEnvironment(env_load_fn(env_name, gym_env_wrappers=(FrameStack4, AtariPreprocessing)))
+    tf_env = tf_py_environment.TFPyEnvironment(
+        parallel_py_environment.ParallelPyEnvironment(
+            [lambda: env_load_fn(env_name, gym_env_wrappers=(FrameStack4, AtariPreprocessing))] * num_parallel_environments))
     optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate)
 
     if use_rnns:
