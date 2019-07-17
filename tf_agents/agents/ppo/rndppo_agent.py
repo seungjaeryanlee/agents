@@ -108,7 +108,7 @@ def _normalize_advantages(advantages, axes=(0,), variance_epsilon=1e-8):
   return normalized_advantages
 
 
-# TODO(seungjaeryanlee) Inherit ppo_agent.PPOAgent
+# TODO(seungjaeryanlee) Merge with ppo_agent.PPOAgent
 @gin.configurable
 class RNDPPOAgent(tf_agent.TFAgent):
   """A RNDPPO Agent."""
@@ -298,7 +298,6 @@ class RNDPPOAgent(tf_agent.TFAgent):
 
       self._rnd_reward_normalizer = None
       if rnd_normalize_rewards:
-        # TODO(seungjaeryanlee): Check if normalization method fits that of RND
         self._rnd_reward_normalizer = tensor_normalizer.StreamingTensorNormalizer(
             tensor_spec.TensorSpec([], tf.float32), scope='normalize_rnd_reward')
 
@@ -492,10 +491,9 @@ class RNDPPOAgent(tf_agent.TFAgent):
 
     # Normalize intrinsic rewards if self._rnd_reward_normalizer is defined.
     if self._use_rnd and self._rnd_reward_normalizer:
-      # TODO(seungjaeryanlee): Check normalization parameters
       # TODO(seungjaeryanlee): This normalization should happen before adding intrinsic reward?
       intrinsic_rewards = self._rnd_reward_normalizer.normalize(
-          intrinsic_rewards, center_mean=False, clip_value=self._reward_norm_clipping)
+          intrinsic_rewards, center_mean=False)
       if self._debug_summaries:
         tf.compat.v2.summary.histogram(
             name='rnd_rewards_normalized',
