@@ -480,9 +480,8 @@ class RNDPPOAgent(tf_agent.TFAgent):
 
     # Normalize intrinsic rewards if self._rnd_reward_normalizer is defined.
     if self._use_rnd and self._rnd_reward_normalizer:
-      # TODO(seungjaeryanlee): This normalization should happen before adding intrinsic reward?
       intrinsic_rewards = self._rnd_reward_normalizer.normalize(
-          intrinsic_rewards, center_mean=False)
+          intrinsic_rewards, center_mean=False, clip_value=-1)
       if self._debug_summaries:
         tf.compat.v2.summary.histogram(
             name='rnd_rewards_normalized',
