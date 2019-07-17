@@ -713,10 +713,14 @@ class RNDPPOAgent(tf_agent.TFAgent):
 
     return loss_info
 
-  def rnd_loss(self, time_steps, debug_summaries=False):
+  def rnd_loss(self, time_steps, observation_clip_value=5, debug_summaries=False):
+    clipped_observations = tf.clip_by_value(
+      time_steps.observation,
+      -observation_clip_value,
+      observation_clip_value)
     # Prediction and Target have shape (# Env, # Timesteps, Final FC Layer)
-    rnd_prediction, _ = self._rnd_network(time_steps.observation)
-    rnd_target, _ = self._target_rnd_network(time_steps.observation)
+    rnd_prediction, _ = self._rnd_network(clipped_observations)
+    rnd_target, _ = self._target_rnd_network(clipped_observations)
     # rnd_losses have shape (# Env, # Timesteps)
     rnd_losses = self._rnd_loss_fn(rnd_prediction, rnd_target, axis=2)
     avg_rnd_loss = tf.reduce_mean(rnd_losses)
