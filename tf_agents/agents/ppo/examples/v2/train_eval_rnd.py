@@ -117,7 +117,7 @@ def train_eval(
     summary_interval=50,
     summaries_flush_secs=1,
     use_tf_functions=True,
-    debug_summaries=False,
+    debug_summaries=True,
     summarize_grads_and_vars=False):
   """A simple train and eval for RNDPPO."""
   if root_dir is None:
