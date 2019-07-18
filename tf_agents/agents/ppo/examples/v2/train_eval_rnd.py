@@ -73,7 +73,7 @@ from tf_agents.utils import common
 flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
                     'Root directory for writing logs/summaries/checkpoints.')
 flags.DEFINE_string('env_name', 'PongDeterministic-v0', 'Name of an environment')
-flags.DEFINE_integer('replay_buffer_capacity', 128,
+flags.DEFINE_integer('replay_buffer_capacity', 129,
                      'Replay buffer capacity per env.')
 flags.DEFINE_integer('num_parallel_environments', 16,
                      'Number of environments to run in parallel')
@@ -106,7 +106,7 @@ def train_eval(
     num_environment_steps=2000000000,
     collect_episodes_per_iteration=16,
     num_parallel_environments=16,
-    replay_buffer_capacity=128,  # Per-environment
+    replay_buffer_capacity=129,  # Per-environment
     # Params for train
     num_epochs=4,
     learning_rate=1e-4,
