@@ -56,6 +56,7 @@ from tf_agents.environments import parallel_py_environment
 from tf_agents.environments import tf_py_environment
 from tf_agents.environments import suite_gym
 from tf_agents.environments import suite_atari
+from tf_agents.environments.suite_atari import DEFAULT_ATARI_GYM_WRAPPERS_WITH_STACKING
 from tf_agents.environments.atari_preprocessing import AtariPreprocessing
 from tf_agents.environments.atari_wrappers import FrameStack4
 from tf_agents.eval import metric_utils
@@ -98,8 +99,8 @@ def train_eval(
     env_load_fn=suite_gym.load,
     random_seed=0,
     # TODO(b/127576522): rename to policy_fc_layers.
-    actor_fc_layers=(512),
-    value_fc_layers=(512),
+    actor_fc_layers=(512, 448),
+    value_fc_layers=(512, 448),
     use_rnns=False,
     # Params for collect
     num_environment_steps=2000000000,
@@ -146,10 +147,10 @@ def train_eval(
     # tf_env = tf_py_environment.TFPyEnvironment(
     #     parallel_py_environment.ParallelPyEnvironment(
     #         [lambda: env_load_fn(env_name)] * num_parallel_environments))
-    eval_tf_env = tf_py_environment.TFPyEnvironment(env_load_fn(env_name, gym_env_wrappers=(FrameStack4, AtariPreprocessing)))
+    eval_tf_env = tf_py_environment.TFPyEnvironment(suite_atari.load(env_name, gym_env_wrappers=DEFAULT_ATARI_GYM_WRAPPERS_WITH_STACKING))
     tf_env = tf_py_environment.TFPyEnvironment(
         parallel_py_environment.ParallelPyEnvironment(
-            [lambda: env_load_fn(env_name, gym_env_wrappers=(FrameStack4, AtariPreprocessing))] * num_parallel_environments))
+            [lambda: suite_atari.load(env_name, gym_env_wrappers=DEFAULT_ATARI_GYM_WRAPPERS_WITH_STACKING)] * num_parallel_environments))
     optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate)
 
     if use_rnns:
