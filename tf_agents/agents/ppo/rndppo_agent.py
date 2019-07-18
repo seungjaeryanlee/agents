@@ -756,7 +756,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
 
   def rnd_loss(self, time_steps, debug_summaries=False):
     # Normalize observations
-    if self._rnd_normalize_observation:
+    if self._rnd_observation_normalizer:
       observations = self._rnd_observation_normalizer.normalize(
             time_steps.observation, center_mean=True, clip_value=self._rnd_observation_clip_value)
     else:
