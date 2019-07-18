@@ -113,3 +113,26 @@ class FireOnReset(gym.Wrapper):
       self.env.step(1)
       observation, _, _, _ = self.env.step(2)
     return observation
+
+
+
+class DivideBy255(gym.Wrapper):
+  """Normalize observation. (must be applied to Gym env, not our envs)."""
+
+  def __init__(self, env):
+    super(DivideBy255, self).__init__(env)
+    self._env = env
+    space = self._env.observation_space
+    self.observation_space = gym.spaces.Box(
+        low=0, high=1, shape=space.shape, dtype=np.float16)
+
+  def __getattr__(self, name):
+    """Forward all other calls to the base environment."""
+    return getattr(self._env, name)
+
+  def reset(self):
+    return self._env.reset() / 255.
+
+  def step(self, action):
+    observation, reward, done, info = self._env.step(action)
+    return observation / 255., reward, done, info
