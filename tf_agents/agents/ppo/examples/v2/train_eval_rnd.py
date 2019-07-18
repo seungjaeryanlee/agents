@@ -25,13 +25,13 @@ python tf_agents/agents/ppo/examples/v2/train_eval_rnd.py \
   --logtostderr
 ```
 
-To run on Atari Venture:
+To run on Atari Pong:
 
 ```bash
-tensorboard --logdir $HOME/tmp/rndppo/gym/VentureDeterministic-v0/ --port 2223 &
+tensorboard --logdir $HOME/tmp/rndppo/gym/PongDeterministic-v0/ --port 2223 &
 
 python tf_agents/agents/ppo/examples/v2/train_eval_rnd.py \
-  --root_dir=$HOME/tmp/rndppo/gym/VentureDeterministic-v0/ \
+  --root_dir=$HOME/tmp/rndppo/gym/PongDeterministic-v0/ \
   --logtostderr
 ```
 """
@@ -72,7 +72,7 @@ from tf_agents.utils import common
 
 flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
                     'Root directory for writing logs/summaries/checkpoints.')
-flags.DEFINE_string('env_name', 'VentureDeterministic-v0', 'Name of an environment')
+flags.DEFINE_string('env_name', 'PongDeterministic-v0', 'Name of an environment')
 flags.DEFINE_integer('replay_buffer_capacity', 128,
                      'Replay buffer capacity per env.')
 flags.DEFINE_integer('num_parallel_environments', 16,
@@ -95,7 +95,7 @@ FLAGS = flags.FLAGS
 @gin.configurable
 def train_eval(
     root_dir,
-    env_name='VentureDeterministic-v0',
+    env_name='PongDeterministic-v0',
     env_load_fn=suite_gym.load,
     random_seed=0,
     # TODO(b/127576522): rename to policy_fc_layers.
