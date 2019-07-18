@@ -131,7 +131,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
                use_td_lambda_return=True,
                normalize_rewards=True,
                reward_norm_clipping=1.0,
-               normalize_observations=True,
+               normalize_observations=False,
                log_prob_clipping=0.0,
                kl_cutoff_factor=2.0,
                kl_cutoff_coef=1000.0,
