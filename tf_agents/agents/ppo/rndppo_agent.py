@@ -144,9 +144,12 @@ class RNDPPOAgent(tf_agent.TFAgent):
                rnd_network=None,
                rnd_optimizer=None,
                rnd_loss_fn=None,
+               # TODO(seungjaeryanlee): Update docstrings
                rnd_normalize_rewards=True,
                rnd_ext_reward_factor=2,
                rnd_int_reward_factor=1,
+               rnd_normalize_observations=True,
+               rnd_observation_clip_value=5,
                check_numerics=False,
                debug_summaries=True,
                summarize_grads_and_vars=False,
@@ -295,6 +298,12 @@ class RNDPPOAgent(tf_agent.TFAgent):
       self._rnd_loss_fn = rnd_loss_fn or mean_squared_loss
       self._rnd_ext_reward_factor = rnd_ext_reward_factor
       self._rnd_int_reward_factor = rnd_int_reward_factor
+
+      self._rnd_observation_normalizer = None
+      if rnd_normalize_observations:
+        self._rnd_observation_normalizer = tensor_normalizer.StreamingTensorNormalizer(
+            tensor_spec.TensorSpec([], tf.float32), scope='normalize_rnd_observation')
+        self._rnd_observation_clip_value = rnd_observation_clip_value
 
       self._rnd_reward_normalizer = None
       if rnd_normalize_rewards:
@@ -745,14 +754,17 @@ class RNDPPOAgent(tf_agent.TFAgent):
 
     return loss_info
 
-  def rnd_loss(self, time_steps, observation_clip_value=5, debug_summaries=False):
-    clipped_observations = tf.clip_by_value(
-      time_steps.observation,
-      -observation_clip_value,
-      observation_clip_value)
+  def rnd_loss(self, time_steps, debug_summaries=False):
+    # Normalize observations
+    if self._rnd_normalize_observation:
+      observations = self._rnd_observation_normalizer.normalize(
+            time_steps.observation, center_mean=True, clip_value=self._rnd_observation_clip_value)
+    else:
+      observations = time_steps.observation
+
     # Prediction and Target have shape (# Env, # Timesteps, Final FC Layer)
-    rnd_prediction, _ = self._rnd_network(clipped_observations)
-    rnd_target, _ = self._target_rnd_network(clipped_observations)
+    rnd_prediction, _ = self._rnd_network(observations)
+    rnd_target, _ = self._target_rnd_network(observations)
     # rnd_losses have shape (# Env, # Timesteps)
     rnd_losses = self._rnd_loss_fn(rnd_prediction, rnd_target, axis=2)
     avg_rnd_loss = tf.reduce_mean(rnd_losses)
