@@ -590,7 +590,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
 
     # Compute intrinsic reward via RND
     if self._use_rnd:
-      _, intrinsic_rewards = self.rnd_loss(time_steps, debug_summaries=self._debug_summaries)
+      intrinsic_rewards, _ = self.rnd_loss(time_steps, debug_summaries=self._debug_summaries)
       returns, normalized_advantages = self.compute_return_and_advantage(
           next_time_steps, value_preds, intrinsic_rewards=intrinsic_rewards)
     else:
