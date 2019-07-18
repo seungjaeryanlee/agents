@@ -147,10 +147,11 @@ def train_eval(
     # tf_env = tf_py_environment.TFPyEnvironment(
     #     parallel_py_environment.ParallelPyEnvironment(
     #         [lambda: env_load_fn(env_name)] * num_parallel_environments))
-    eval_tf_env = tf_py_environment.TFPyEnvironment(suite_atari.load(env_name, gym_env_wrappers=(DEFAULT_ATARI_GYM_WRAPPERS_WITH_STACKING + (DivideBy255,))))
+    WRAPPERS = DEFAULT_ATARI_GYM_WRAPPERS_WITH_STACKING + (DivideBy255,)
+    eval_tf_env = tf_py_environment.TFPyEnvironment(suite_atari.load(env_name, gym_env_wrappers=WRAPPERS))
     tf_env = tf_py_environment.TFPyEnvironment(
         parallel_py_environment.ParallelPyEnvironment(
-            [lambda: suite_atari.load(env_name, gym_env_wrappers=(DEFAULT_ATARI_GYM_WRAPPERS_WITH_STACKING + (DivideBy255,))] * num_parallel_environments))
+            [lambda: suite_atari.load(env_name, gym_env_wrappers=WRAPPERS)] * num_parallel_environments))
     optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate)
 
     if use_rnns:
