@@ -548,8 +548,8 @@ class RNDPPOAgent(tf_agent.TFAgent):
     # Get individual tensors from transitions.
     (time_steps, policy_steps_,
      next_time_steps) = trajectory.to_transition(experience)
-    # TODO Observation input to RND Network should not be divided by 255
-    time_steps = time_steps._replace(observation=time_steps.observation/255)
+    # Observation input to RND Network should not be divided by 255
+    rnd_time_steps, time_steps = time_steps, time_steps._replace(observation=time_steps.observation/255)
 
     actions = policy_steps_.action
 
@@ -593,7 +593,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
 
     # Compute intrinsic reward via RND
     if self._use_rnd:
-      intrinsic_rewards, _ = self.rnd_loss(time_steps, debug_summaries=self._debug_summaries)
+      intrinsic_rewards, _ = self.rnd_loss(rnd_time_steps, debug_summaries=self._debug_summaries)
       returns, normalized_advantages = self.compute_return_and_advantage(
           next_time_steps, value_preds, intrinsic_rewards=intrinsic_rewards)
     else:
