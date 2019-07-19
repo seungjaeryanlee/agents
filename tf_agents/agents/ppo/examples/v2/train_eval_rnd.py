@@ -168,14 +168,17 @@ def train_eval(
       actor_net = actor_distribution_network.ActorDistributionNetwork(
           tf_env.observation_spec(),
           tf_env.action_spec(),
+          conv_layer_params=[(32, 8, 4), (64, 4, 2), (64, 3, 1)],
           fc_layer_params=actor_fc_layers)
       value_net = value_network.ValueNetwork(
-          tf_env.observation_spec(), fc_layer_params=value_fc_layers)
+          tf_env.observation_spec(),
+          conv_layer_params=[(32, 8, 4), (64, 4, 2), (64, 3, 1)],
+          fc_layer_params=value_fc_layers)
 
     rnd_net = encoding_network.EncodingNetwork(
         tf_env.observation_spec(),
-        # TODO(seungjaeryanlee): Use actor layers or value layers?
-        fc_layer_params=value_fc_layers,
+        conv_layer_params=[(32, 8, 4), (64, 4, 2), (64, 3, 1)],
+        fc_layer_params=(512,),
         name='PredictorRNDNetwork')
 
     tf_agent = rndppo_agent.RNDPPOAgent(
@@ -246,6 +249,7 @@ def train_eval(
 
       start_time = time.time()
       trajectories = replay_buffer.gather_all()
+    #   tf.print(trajectories.observation[:,:-1])
       total_loss, _ = tf_agent.train(experience=trajectories)
       replay_buffer.clear()
       train_time += time.time() - start_time
