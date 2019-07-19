@@ -581,7 +581,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
     policy_state = self._collect_policy.get_initial_state(batch_size=batch_size)
 
     value_preds, unused_policy_state = self._collect_policy.apply_value_network(
-        experience.observation, experience.step_type, policy_state=policy_state)
+        experience.observation/255, experience.step_type, policy_state=policy_state)
     value_preds = tf.stop_gradient(value_preds)
 
     valid_mask = ppo_utils.make_timestep_mask(next_time_steps)
