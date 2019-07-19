@@ -131,8 +131,8 @@ class DivideBy255(gym.Wrapper):
     return getattr(self._env, name)
 
   def reset(self):
-    return self._env.reset() / 255.
+    return (self._env.reset() / 255).astype(np.float16)
 
   def step(self, action):
     observation, reward, done, info = self._env.step(action)
-    return observation / 255., reward, done, info
+    return (observation / 255).astype(np.float16), reward, done, info

@@ -548,6 +548,8 @@ class RNDPPOAgent(tf_agent.TFAgent):
     # Get individual tensors from transitions.
     (time_steps, policy_steps_,
      next_time_steps) = trajectory.to_transition(experience)
+    # TODO Policy and Value Network should use observation divided by 255
+
     actions = policy_steps_.action
 
     if self._debug_summaries:
