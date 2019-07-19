@@ -142,6 +142,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
                # RND Parameters
                use_rnd=True,
                rnd_network=None,
+               target_rnd_network=None,
                rnd_optimizer=None,
                rnd_loss_fn=None,
                # TODO(seungjaeryanlee): Update docstrings
@@ -293,7 +294,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
     self._use_rnd = use_rnd
     if self._use_rnd:
       self._rnd_network = rnd_network
-      self._target_rnd_network = self._rnd_network.copy(name='TargetRNDNetwork')
+      self._target_rnd_network = target_rnd_network
       self._rnd_optimizer = rnd_optimizer
       self._rnd_loss_fn = rnd_loss_fn or mean_squared_loss
       self._rnd_ext_reward_factor = rnd_ext_reward_factor

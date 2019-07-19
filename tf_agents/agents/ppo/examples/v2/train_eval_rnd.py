@@ -181,10 +181,18 @@ def train_eval(
         fc_layer_params=(512,),
         name='PredictorRNDNetwork')
 
+    # TODO(seungjaeryanlee): Better way of passing target network? OpenAI's implementation is similar though.
+    target_rnd_net = encoding_network.EncodingNetwork(
+        tf_env.observation_spec(),
+        conv_layer_params=[(32, 8, 4), (64, 4, 2), (64, 3, 1)],
+        fc_layer_params=(512,),
+        name='TargetRNDNetwork')
+
     tf_agent = rndppo_agent.RNDPPOAgent(
         tf_env.time_step_spec(),
         tf_env.action_spec(),
         rnd_network=rnd_net,
+        target_rnd_network=target_rnd_net,
         rnd_optimizer=tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate),
         rnd_loss_fn=rndppo_agent.mean_squared_loss,
         optimizer=optimizer,
