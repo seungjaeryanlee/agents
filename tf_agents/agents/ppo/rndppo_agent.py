@@ -692,6 +692,10 @@ class RNDPPOAgent(tf_agent.TFAgent):
         self._rnd_reward_normalizer.update(intrinsic_rewards,
                                            outer_dims=[0, 1])
 
+    if self._rnd_observation_normalizer:
+      self._rnd_observation_normalizer.update(
+          rnd_time_steps.observation, outer_dims=[0, 1])
+
     loss_info = tf.nest.map_structure(tf.identity, loss_info)
 
     # Make summaries for total loss across all epochs.
