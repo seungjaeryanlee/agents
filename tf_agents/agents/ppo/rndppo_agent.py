@@ -322,6 +322,22 @@ class RNDPPOAgent(tf_agent.TFAgent):
         summarize_grads_and_vars=summarize_grads_and_vars,
         train_step_counter=train_step_counter)
 
+  def _init_rnd_normalizer(self, experience):
+    """Initialize normalization parameters for RND.
+    """
+    # Get individual tensors from transitions.
+    (rnd_time_steps, _, _) = trajectory.to_transition(experience)
+
+    if self._rnd_observation_normalizer:
+      self._rnd_observation_normalizer.update(
+          rnd_time_steps.observation, outer_dims=[0, 1])
+
+    # Update RND reward normalizer
+    if self._rnd_reward_normalizer:
+      intrinsic_rewards, _ = self.rnd_loss(rnd_time_steps, debug_summaries=self._debug_summaries)
+      self._rnd_reward_normalizer.update(intrinsic_rewards,
+                                          outer_dims=[0, 1])
+
   @property
   def actor_net(self):
     """Returns actor_net TensorFlow template function."""

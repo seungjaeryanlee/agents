@@ -229,6 +229,24 @@ def train_eval(
         observers=[replay_buffer.add_batch] + train_metrics,
         num_episodes=collect_episodes_per_iteration)
 
+    # Initialize RND normalization parameters
+    # TODO(seungjaeryanlee): Change parameters
+    for _ in range(5):
+      rnd_init_replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
+          tf_agent.collect_data_spec,
+          batch_size=num_parallel_environments,
+          max_length=replay_buffer_capacity)
+      rnd_init_collect_driver = dynamic_episode_driver.DynamicEpisodeDriver(
+          tf_env,
+          collect_policy,
+          observers=[rnd_init_replay_buffer.add_batch],
+          num_episodes=collect_episodes_per_iteration)
+
+      rnd_init_collect_driver.run()
+      trajectories = rnd_init_replay_buffer.gather_all()
+      tf_agent._init_rnd_normalizer(experience=trajectories)
+      rnd_init_replay_buffer.clear()
+
     if use_tf_functions:
       # TODO(b/123828980): Enable once the cause for slowdown was identified.
       collect_driver.run = common.function(collect_driver.run, autograph=False)
