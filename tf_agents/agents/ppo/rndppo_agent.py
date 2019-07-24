@@ -131,7 +131,8 @@ class RNDPPOAgent(tf_agent.TFAgent):
                use_td_lambda_return=True,
                normalize_rewards=True,
                reward_norm_clipping=1.0,
-               normalize_observations=False,
+               normalize_observations=True,
+               observation_clip_value=5,
                log_prob_clipping=0.0,
                kl_cutoff_factor=2.0,
                kl_cutoff_coef=1000.0,
@@ -149,8 +150,6 @@ class RNDPPOAgent(tf_agent.TFAgent):
                rnd_normalize_rewards=True,
                rnd_ext_reward_factor=2,
                rnd_int_reward_factor=1,
-               rnd_normalize_observations=True,
-               rnd_observation_clip_value=5,
                check_numerics=False,
                debug_summaries=True,
                summarize_grads_and_vars=False,
@@ -269,6 +268,8 @@ class RNDPPOAgent(tf_agent.TFAgent):
       self._observation_normalizer = (
           tensor_normalizer.StreamingTensorNormalizer(
               time_step_spec.observation, scope='normalize_observations'))
+    if use_rnd:
+      self._observation_clip_value = observation_clip_value
 
     policy = greedy_policy.GreedyPolicy(
         ppo_policy.PPOPolicy(
@@ -300,13 +301,6 @@ class RNDPPOAgent(tf_agent.TFAgent):
       self._rnd_ext_reward_factor = rnd_ext_reward_factor
       self._rnd_int_reward_factor = rnd_int_reward_factor
 
-      self._rnd_observation_normalizer = None
-      if rnd_normalize_observations:
-        self._rnd_observation_normalizer = (
-            tensor_normalizer.StreamingTensorNormalizer(
-                time_step_spec.observation, scope='normalize_rnd_observations'))
-        self._rnd_observation_clip_value = rnd_observation_clip_value
-
       self._rnd_reward_normalizer = None
       if rnd_normalize_rewards:
         self._rnd_reward_normalizer = tensor_normalizer.StreamingTensorNormalizer(
@@ -326,15 +320,15 @@ class RNDPPOAgent(tf_agent.TFAgent):
     """Initialize normalization parameters for RND.
     """
     # Get individual tensors from transitions.
-    (rnd_time_steps, _, _) = trajectory.to_transition(experience)
+    (time_steps, _, _) = trajectory.to_transition(experience)
 
-    if self._rnd_observation_normalizer:
-      self._rnd_observation_normalizer.update(
-          rnd_time_steps.observation, outer_dims=[0, 1])
+    if self._observation_normalizer:
+      self._observation_normalizer.update(
+          time_steps.observation, outer_dims=[0, 1])
 
     # Update RND reward normalizer
     if self._rnd_reward_normalizer:
-      intrinsic_rewards, _ = self.rnd_loss(rnd_time_steps, debug_summaries=self._debug_summaries)
+      intrinsic_rewards, _ = self.rnd_loss(time_steps, debug_summaries=self._debug_summaries)
       self._rnd_reward_normalizer.update(intrinsic_rewards,
                                           outer_dims=[0, 1])
 
@@ -566,9 +560,6 @@ class RNDPPOAgent(tf_agent.TFAgent):
     # Get individual tensors from transitions.
     (time_steps, policy_steps_,
      next_time_steps) = trajectory.to_transition(experience)
-    # Observation input to RND Network should not be divided by 255
-    # rnd_time_steps, time_steps = time_steps, time_steps._replace(observation=time_steps.observation/255)
-    rnd_time_steps = time_steps
 
     actions = policy_steps_.action
 
@@ -613,7 +604,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
 
     # Compute intrinsic reward via RND
     if self._use_rnd:
-      intrinsic_rewards, _ = self.rnd_loss(rnd_time_steps, debug_summaries=self._debug_summaries)
+      intrinsic_rewards, _ = self.rnd_loss(time_steps, debug_summaries=self._debug_summaries)
       returns, normalized_advantages = self.compute_return_and_advantage(
           next_time_steps, value_preds, intrinsic_rewards=intrinsic_rewards)
     else:
@@ -701,19 +692,13 @@ class RNDPPOAgent(tf_agent.TFAgent):
     if self._observation_normalizer:
       self._observation_normalizer.update(
           time_steps.observation, outer_dims=[0, 1])
-    else:
-      # TODO(b/127661780): Verify performance of reward_normalizer when obs are
-      #                    not normalized
-      if self._reward_normalizer:
-        self._reward_normalizer.update(next_time_steps.reward,
-                                       outer_dims=[0, 1])
-      if self._use_rnd and self._rnd_reward_normalizer:
-        self._rnd_reward_normalizer.update(intrinsic_rewards,
-                                           outer_dims=[0, 1])
+    if self._reward_normalizer:
+      self._reward_normalizer.update(next_time_steps.reward,
+                                      outer_dims=[0, 1])
+    if self._use_rnd and self._rnd_reward_normalizer:
+      self._rnd_reward_normalizer.update(intrinsic_rewards,
+                                          outer_dims=[0, 1])
 
-    if self._use_rnd and self._rnd_observation_normalizer:
-      self._rnd_observation_normalizer.update(
-          rnd_time_steps.observation, outer_dims=[0, 1])
 
     loss_info = tf.nest.map_structure(tf.identity, loss_info)
 
@@ -782,10 +767,12 @@ class RNDPPOAgent(tf_agent.TFAgent):
     return loss_info
 
   def rnd_loss(self, time_steps, debug_summaries=False):
-    # Normalize observations
-    if self._rnd_observation_normalizer:
-      observations = self._rnd_observation_normalizer.normalize(
-            time_steps.observation, center_mean=True, clip_value=self._rnd_observation_clip_value)
+    # Clip normalized observations
+    if self._observation_clip_value > 0:
+      observations = tf.clip_by_value(
+        time_steps.observation,
+        -self._observation_clip_value,
+        self._observation_clip_value)
     else:
       observations = time_steps.observation
 
