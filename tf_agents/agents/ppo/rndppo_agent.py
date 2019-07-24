@@ -693,7 +693,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
         self._rnd_reward_normalizer.update(intrinsic_rewards,
                                            outer_dims=[0, 1])
 
-    if self._rnd_observation_normalizer:
+    if self._use_rnd and self._rnd_observation_normalizer:
       self._rnd_observation_normalizer.update(
           rnd_time_steps.observation, outer_dims=[0, 1])
 
