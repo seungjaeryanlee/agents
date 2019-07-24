@@ -13,26 +13,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-r"""Train and Eval RNDPPO.
+r"""Train and Eval PPO on Atari environments.
 
-To run:
-
-```bash
-tensorboard --logdir $HOME/tmp/rndppo/gym/LunarLander-v2/ --port 2223 &
-
-python tf_agents/agents/ppo/examples/v2/train_eval_rnd.py \
-  --root_dir=$HOME/tmp/rndppo/gym/LunarLander-v2/ \
-  --logtostderr
-```
-
-To run on Atari Pong:
+To run on Atari Pong without RND:
 
 ```bash
 tensorboard --logdir $HOME/tmp/rndppo/gym/PongDeterministic-v0/ --port 2223 &
 
-python tf_agents/agents/ppo/examples/v2/train_eval_rnd.py \
+python tf_agents/agents/ppo/examples/v2/train_eval_atari.py \
   --root_dir=$HOME/tmp/rndppo/gym/PongDeterministic-v0/ \
   --logtostderr
+```
+
+To run on Atari Pong with RND:
+
+```bash
+tensorboard --logdir $HOME/tmp/rndppo/gym/PongDeterministic-v0/ --port 2223 &
+
+python tf_agents/agents/ppo/examples/v2/train_eval_atari.py \
+  --root_dir=$HOME/tmp/rndppo/gym/PongDeterministic-v0/ \
+  --logtostderr --use_rnd
 ```
 """
 
