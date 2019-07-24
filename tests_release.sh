@@ -16,6 +16,12 @@ fi
 
 run_tests() {
   echo "run_tests $1 $2"
+
+  # Install necessary python version
+  pyenv install --list
+  pyenv install -s $1
+  pyenv global $1
+
   TMP=$(mktemp -d)
   # Create and activate a virtualenv to specify python version and test in
   # isolated environment. Note that we don't actually have to cd'ed into a
@@ -70,7 +76,7 @@ if ! which cmake > /dev/null; then
 fi
 
 # Test on Python2.7
-run_tests "python2.7" $1
-# Test on Python3.6
-run_tests "python3.6" $1
+run_tests "2.7" $1
+# Test on Python3.6.1
+run_tests "3.6.1" $1
 

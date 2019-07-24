@@ -28,6 +28,21 @@ from tf_agents.utils import test_utils
 
 class EncodingNetworkTest(test_utils.TestCase):
 
+  def test_empty_layers(self):
+    input_spec = tensor_spec.TensorSpec((2, 3), tf.float32)
+    network = encoding_network.EncodingNetwork(input_spec,)
+
+    variables = network.variables
+    self.assertEqual(0, len(variables))
+
+    # Only one layer to flatten input.
+    self.assertEqual(1, len(network.layers))
+    config = network.layers[0].get_config()
+    self.assertEqual('flatten', config['name'])
+
+    out, _ = network(tf.ones((1, 2, 3)))
+    self.assertAllEqual(out, [[1, 1, 1, 1, 1, 1]])
+
   def test_non_preprocessing_layers(self):
     input_spec = tensor_spec.TensorSpec((32, 32, 3), tf.float32)
     network = encoding_network.EncodingNetwork(
@@ -133,6 +148,89 @@ class EncodingNetworkTest(test_utils.TestCase):
     output, _ = network(sample_input)
     # 6144 is the shape from a concat of flat (32, 32, 3) x2.
     self.assertEqual((6144,), output.shape)
+
+  def testNumericFeatureColumnInput(self):
+    key = 'feature_key'
+    batch_size = 3
+    state_dims = 5
+    input_shape = (batch_size, state_dims)
+    column = tf.feature_column.numeric_column(key, [state_dims])
+    state = {key: tf.ones(input_shape, tf.int32)}
+    input_spec = {key: tensor_spec.TensorSpec([state_dims], tf.int32)}
+
+    network = encoding_network.EncodingNetwork(
+        input_spec,
+        preprocessing_combiner=tf.keras.layers.DenseFeatures([column]))
+
+    output, _ = network(state)
+    self.assertEqual(input_shape, output.shape)
+
+  def testIndicatorFeatureColumnInput(self):
+    key = 'feature_key'
+    vocab_list = [2, 3, 4]
+    column = tf.feature_column.categorical_column_with_vocabulary_list(
+        key, vocab_list)
+    column = tf.feature_column.indicator_column(column)
+
+    state_input = [3, 2, 2, 4, 3]
+    state = {key: tf.expand_dims(state_input, -1)}
+    input_spec = {key: tensor_spec.TensorSpec([1], tf.int32)}
+
+    network = encoding_network.EncodingNetwork(
+        input_spec,
+        preprocessing_combiner=tf.keras.layers.DenseFeatures([column]))
+
+    output, _ = network(state)
+    expected_shape = (len(state_input), len(vocab_list))
+    self.assertEqual(expected_shape, output.shape)
+
+  def testCombinedFeatureColumnInput(self):
+    columns = {}
+    tensors = {}
+    specs = {}
+    expected_dim = 0
+
+    indicator_key = 'indicator_key'
+    vocab_list = [2, 3, 4]
+    column1 = tf.feature_column.categorical_column_with_vocabulary_list(
+        indicator_key, vocab_list)
+    columns[indicator_key] = tf.feature_column.indicator_column(column1)
+    state_input = [3, 2, 2, 4, 3]
+    tensors[indicator_key] = tf.expand_dims(state_input, -1)
+    specs[indicator_key] = tensor_spec.TensorSpec([1], tf.int32)
+    expected_dim += len(vocab_list)
+
+    # TODO(b/134950354): Test embedding column for non-eager mode only for now.
+    if not tf.executing_eagerly():
+      embedding_key = 'embedding_key'
+      embedding_dim = 3
+      vocab_list = [2, 3, 4]
+      column2 = tf.feature_column.categorical_column_with_vocabulary_list(
+          embedding_key, vocab_list)
+      columns[embedding_key] = tf.feature_column.embedding_column(
+          column2, embedding_dim)
+      state_input = [3, 2, 2, 4, 3]
+      tensors[embedding_key] = tf.expand_dims(state_input, -1)
+      specs[embedding_key] = tensor_spec.TensorSpec([1], tf.int32)
+      expected_dim += embedding_dim
+
+    numeric_key = 'numeric_key'
+    batch_size = 5
+    state_dims = 3
+    input_shape = (batch_size, state_dims)
+    columns[numeric_key] = tf.feature_column.numeric_column(
+        numeric_key, [state_dims])
+    tensors[numeric_key] = tf.ones(input_shape, tf.int32)
+    specs[numeric_key] = tensor_spec.TensorSpec([state_dims], tf.int32)
+    expected_dim += state_dims
+
+    network = encoding_network.EncodingNetwork(
+        specs,
+        preprocessing_combiner=tf.keras.layers.DenseFeatures(columns.values()))
+
+    output, _ = network(tensors)
+    expected_shape = (batch_size, expected_dim)
+    self.assertEqual(expected_shape, output.shape)
 
 
 if __name__ == '__main__':

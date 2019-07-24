@@ -31,14 +31,14 @@ from __future__ import division
 from __future__ import print_function
 
 import gin
-from gym.spaces.box import Box
-from gym import Wrapper
+from gym import core as gym_core
+from gym.spaces import box
 import numpy as np
 import cv2
 
 
 @gin.configurable
-class AtariPreprocessing(Wrapper):
+class AtariPreprocessing(gym_core.Wrapper):
   """A class implementing image preprocessing for Atari 2600 agents.
 
   Specifically, this provides the following subset from the JAIR paper
@@ -62,7 +62,7 @@ class AtariPreprocessing(Wrapper):
     """Constructor for an Atari 2600 preprocessor.
 
     Args:
-      environment: Gym environment whose observations are preprocessed.
+      env: Gym environment whose observations are preprocessed.
       frame_skip: int, the frequency at which the agent experiences the game.
       terminal_on_life_loss: bool, If True, the step() method returns
         is_terminal=True whenever a life is lost. See Mnih et al. 2015.
@@ -72,11 +72,10 @@ class AtariPreprocessing(Wrapper):
       ValueError: if frame_skip or screen_size are not strictly positive.
     """
     super(AtariPreprocessing, self).__init__(env)
-    self._env = env
 
     # Return the observation space adjusted to match the shape of the processed
     # observations.
-    self.observation_space = Box(
+    self.observation_space = box.Box(
         low=0,
         high=255,
         shape=(screen_size, screen_size, 1),
@@ -111,29 +110,12 @@ class AtariPreprocessing(Wrapper):
       observation: numpy array, the initial observation emitted by the
         environment.
     """
-    self._env.reset()
+    super(AtariPreprocessing, self).reset()
     self.lives = self.env.ale.lives()
     self.game_over = False
     self._fetch_grayscale_observation(self.screen_buffer[0])
     self.screen_buffer[1].fill(0)
     return self._pool_and_resize()
-
-  def render(self, mode):
-    """Renders the current screen, before preprocessing.
-
-    This calls the Gym API's render() method.
-
-    Args:
-      mode: Mode argument for the environment's render() method.
-        Valid values (str) are:
-          'rgb_array': returns the raw ALE image.
-          'human': renders to display via the Gym renderer.
-
-    Returns:
-      if mode='rgb_array': numpy array, the most recent screen.
-      if mode='human': bool, whether the rendering was successful.
-    """
-    return self.environment.render(mode)
 
   def step(self, action):
     """Applies the given action in the environment.
@@ -161,7 +143,7 @@ class AtariPreprocessing(Wrapper):
     for time_step in range(self.frame_skip):
       # We bypass the Gym observation altogether and directly fetch the
       # grayscale image from the ALE. This is a little faster.
-      _, reward, game_over, info = self._env.step(action)
+      _, reward, game_over, info = super(AtariPreprocessing, self).step(action)
       accumulated_reward += reward
 
       if self.terminal_on_life_loss:
