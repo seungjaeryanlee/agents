@@ -90,6 +90,8 @@ flags.DEFINE_integer('num_eval_episodes', 30,
                      'The number of episodes to run eval on.')
 flags.DEFINE_boolean('use_rnns', False,
                      'If true, use RNN for policy and value function.')
+flags.DEFINE_boolean('use_rnd', False,
+                     'If true, use RND for reward shaping.')
 FLAGS = flags.FLAGS
 
 @gin.configurable
@@ -102,6 +104,7 @@ def train_eval(
     actor_fc_layers=(512, 448),
     value_fc_layers=(512, 448),
     use_rnns=False,
+    use_rnd=False,
     # Params for collect
     num_environment_steps=2000000000,
     collect_episodes_per_iteration=16,
@@ -143,10 +146,6 @@ def train_eval(
   with tf.compat.v2.summary.record_if(
       lambda: tf.math.equal(global_step % summary_interval, 0)):
     tf.compat.v1.set_random_seed(random_seed)
-    # eval_tf_env = tf_py_environment.TFPyEnvironment(env_load_fn(env_name))
-    # tf_env = tf_py_environment.TFPyEnvironment(
-    #     parallel_py_environment.ParallelPyEnvironment(
-    #         [lambda: env_load_fn(env_name)] * num_parallel_environments))
     WRAPPERS = DEFAULT_ATARI_GYM_WRAPPERS_WITH_STACKING
     eval_tf_env = tf_py_environment.TFPyEnvironment(suite_atari.load(env_name, gym_env_wrappers=WRAPPERS))
     tf_env = tf_py_environment.TFPyEnvironment(
@@ -191,6 +190,7 @@ def train_eval(
     tf_agent = rndppo_agent.RNDPPOAgent(
         tf_env.time_step_spec(),
         tf_env.action_spec(),
+        use_rnd=use_rnd,
         rnd_network=rnd_net,
         target_rnd_network=target_rnd_net,
         rnd_optimizer=tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate),
@@ -257,7 +257,6 @@ def train_eval(
 
       start_time = time.time()
       trajectories = replay_buffer.gather_all()
-    #   tf.print(trajectories.observation[:,:-1])
       total_loss, _ = tf_agent.train(experience=trajectories)
       replay_buffer.clear()
       train_time += time.time() - start_time
@@ -300,6 +299,7 @@ def main(_):
       FLAGS.root_dir,
       env_name=FLAGS.env_name,
       use_rnns=FLAGS.use_rnns,
+      use_rnd=FLAGS.use_rnd,
       num_environment_steps=FLAGS.num_environment_steps,
       collect_episodes_per_iteration=FLAGS.collect_episodes_per_iteration,
       num_parallel_environments=FLAGS.num_parallel_environments,
