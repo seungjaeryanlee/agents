@@ -302,8 +302,9 @@ class RNDPPOAgent(tf_agent.TFAgent):
 
       self._rnd_observation_normalizer = None
       if rnd_normalize_observations:
-        self._rnd_observation_normalizer = tensor_normalizer.StreamingTensorNormalizer(
-            tensor_spec.TensorSpec([], tf.float32), scope='normalize_rnd_observation')
+        self._rnd_observation_normalizer = (
+            tensor_normalizer.StreamingTensorNormalizer(
+                time_step_spec.observation, scope='normalize_rnd_observations'))
         self._rnd_observation_clip_value = rnd_observation_clip_value
 
       self._rnd_reward_normalizer = None
