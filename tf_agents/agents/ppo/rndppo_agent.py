@@ -590,9 +590,9 @@ class RNDPPOAgent(tf_agent.TFAgent):
     batch_size = nest_utils.get_outer_shape(time_steps, self._time_step_spec)[0]
     policy_state = self._collect_policy.get_initial_state(batch_size=batch_size)
 
+    # NOTE(seungjaeryanlee): Apply value network uses observation_normalizer defined in collect_policy
     value_preds, unused_policy_state = self._collect_policy.apply_value_network(
-        experience.observation/255, experience.step_type, policy_state=policy_state)
-        # experience.observation, experience.step_type, policy_state=policy_state)
+        experience.observation, experience.step_type, policy_state=policy_state)
     value_preds = tf.stop_gradient(value_preds)
 
     valid_mask = ppo_utils.make_timestep_mask(next_time_steps)
