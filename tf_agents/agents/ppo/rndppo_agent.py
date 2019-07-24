@@ -567,7 +567,8 @@ class RNDPPOAgent(tf_agent.TFAgent):
     (time_steps, policy_steps_,
      next_time_steps) = trajectory.to_transition(experience)
     # Observation input to RND Network should not be divided by 255
-    rnd_time_steps, time_steps = time_steps, time_steps._replace(observation=time_steps.observation/255)
+    # rnd_time_steps, time_steps = time_steps, time_steps._replace(observation=time_steps.observation/255)
+    rnd_time_steps = time_steps
 
     actions = policy_steps_.action
 
@@ -600,6 +601,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
 
     value_preds, unused_policy_state = self._collect_policy.apply_value_network(
         experience.observation/255, experience.step_type, policy_state=policy_state)
+        # experience.observation, experience.step_type, policy_state=policy_state)
     value_preds = tf.stop_gradient(value_preds)
 
     valid_mask = ppo_utils.make_timestep_mask(next_time_steps)
