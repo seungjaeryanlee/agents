@@ -18,10 +18,10 @@ r"""Train and Eval PPO on Atari environments.
 To run on Atari Pong without RND:
 
 ```bash
-tensorboard --logdir $HOME/tmp/rndppo/gym/PongDeterministic-v0/ --port 2223 &
+tensorboard --logdir $HOME/tmp/ppo/gym/PongDeterministic-v0/ --port 2223 &
 
 python tf_agents/agents/ppo/examples/v2/train_eval_atari.py \
-  --root_dir=$HOME/tmp/rndppo/gym/PongDeterministic-v0/ \
+  --root_dir=$HOME/tmp/ppo/gym/PongDeterministic-v0/ \
   --logtostderr
 ```
 
