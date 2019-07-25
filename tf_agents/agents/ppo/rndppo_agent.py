@@ -316,21 +316,29 @@ class RNDPPOAgent(tf_agent.TFAgent):
         summarize_grads_and_vars=summarize_grads_and_vars,
         train_step_counter=train_step_counter)
 
+  # TODO(seungjaeryanlee): Allow without RND
   def _init_rnd_normalizer(self, experience):
     """Initialize normalization parameters for RND.
+
+    Args:
+      experience: Trajectories with unnormalized observations.
     """
     # Get individual tensors from transitions.
     (time_steps, _, _) = trajectory.to_transition(experience)
 
+    # Update Observation normalizer
+    # TODO(seungjaeryanlee): Try separating RND observation normalizer again?
     if self._observation_normalizer:
       self._observation_normalizer.update(
           time_steps.observation, outer_dims=[0, 1])
 
     # Update RND reward normalizer
     if self._rnd_reward_normalizer:
+      # Use normalized observations when computing RND loss
+      observations = self._observation_normalizer.normalize(time_steps.observation, clip_value=5)
+      time_steps = time_steps._replace(observation=observations)
       intrinsic_rewards, _ = self.rnd_loss(time_steps, debug_summaries=self._debug_summaries)
-      self._rnd_reward_normalizer.update(intrinsic_rewards,
-                                          outer_dims=[0, 1])
+      self._rnd_reward_normalizer.update(intrinsic_rewards, outer_dims=[0, 1])
 
   @property
   def actor_net(self):
@@ -444,7 +452,10 @@ class RNDPPOAgent(tf_agent.TFAgent):
         entropy_regularization_loss + kl_penalty_loss)
 
     if self._use_rnd:
-      rnd_losses, avg_rnd_loss = self.rnd_loss(time_steps, debug_summaries=debug_summaries)
+      # TODO(seungjaeryanlee): Shouldn't normalized observation be used everywhere else too?
+      observations = self._observation_normalizer.normalize(time_steps.observation, clip_value=5)
+      rnd_time_steps = time_steps._replace(observation=observations)
+      rnd_losses, avg_rnd_loss = self.rnd_loss(rnd_time_steps, debug_summaries=debug_summaries)
       return tf_agent.LossInfo(
           total_loss,
           RNDPPOLossInfo(
@@ -557,6 +568,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
     return returns, normalized_advantages
 
   def _train(self, experience, weights):
+    # TODO(seungjaeryanlee) These experience are not normalized!
     # Get individual tensors from transitions.
     (time_steps, policy_steps_,
      next_time_steps) = trajectory.to_transition(experience)
@@ -604,7 +616,11 @@ class RNDPPOAgent(tf_agent.TFAgent):
 
     # Compute intrinsic reward via RND
     if self._use_rnd:
-      intrinsic_rewards, _ = self.rnd_loss(time_steps, debug_summaries=self._debug_summaries)
+      # TODO(seungjaeryanlee): Should use DivideBy255 if I create separate RND streaming normalizer
+      # TODO(seungjaeryanlee): RND loss only needs observation - pass observations?
+      observations = self._observation_normalizer.normalize(time_steps.observation, clip_value=5)
+      rnd_time_steps = time_steps._replace(observation=observations)
+      intrinsic_rewards, _ = self.rnd_loss(rnd_time_steps, debug_summaries=self._debug_summaries)
       returns, normalized_advantages = self.compute_return_and_advantage(
           next_time_steps, value_preds, intrinsic_rewards=intrinsic_rewards)
     else:
@@ -659,10 +675,11 @@ class RNDPPOAgent(tf_agent.TFAgent):
                                               self.train_step_counter)
           eager_utils.add_variables_summaries(grads_and_vars,
                                               self.train_step_counter)
-          eager_utils.add_gradients_summaries(rnd_grads_and_vars,
-                                              self.train_step_counter)
-          eager_utils.add_variables_summaries(rnd_grads_and_vars,
-                                              self.train_step_counter)
+          if self._use_rnd:
+            eager_utils.add_gradients_summaries(rnd_grads_and_vars,
+                                                self.train_step_counter)
+            eager_utils.add_variables_summaries(rnd_grads_and_vars,
+                                                self.train_step_counter)
 
         self._optimizer.apply_gradients(
             grads_and_vars, global_step=self.train_step_counter)
@@ -767,14 +784,14 @@ class RNDPPOAgent(tf_agent.TFAgent):
     return loss_info
 
   def rnd_loss(self, time_steps, debug_summaries=False):
-    # Clip normalized observations
-    if self._observation_clip_value > 0:
-      observations = tf.clip_by_value(
-        time_steps.observation,
-        -self._observation_clip_value,
-        self._observation_clip_value)
-    else:
-      observations = time_steps.observation
+    """Compute RND loss.
+
+    Args:
+      time_steps: Timesteps with normalized observations.
+      debug_summaries: True if debug summaries should be created.
+
+    """
+    observations = time_steps.observation
 
     # Prediction and Target have shape (# Env, # Timesteps, Final FC Layer)
     rnd_prediction, _ = self._rnd_network(observations)

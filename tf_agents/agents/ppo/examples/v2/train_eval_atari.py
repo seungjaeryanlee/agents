@@ -231,7 +231,7 @@ def train_eval(
 
     # Initialize RND normalization parameters
     # TODO(seungjaeryanlee): Change parameters
-    for _ in range(5):
+    for _ in range(0):
       rnd_init_replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
           tf_agent.collect_data_spec,
           batch_size=num_parallel_environments,
