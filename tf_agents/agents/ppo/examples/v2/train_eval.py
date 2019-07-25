@@ -15,16 +15,6 @@
 
 r"""Train and Eval PPO.
 
-To run HalfCheetah with PPO:
-
-```bash
-tensorboard --logdir $HOME/tmp/ppo/gym/HalfCheetah-v2/ --port 2223 &
-
-python tf_agents/agents/ppo/examples/v2/train_eval.py \
-  --root_dir=$HOME/tmp/ppo/gym/HalfCheetah-v2/ \
-  --logtostderr
-```
-
 To run LunarLander with PPO:
 
 ```bash
@@ -55,7 +45,8 @@ import tensorflow as tf
 from tf_agents.agents.ppo import ppo_agent
 from tf_agents.drivers import dynamic_episode_driver
 from tf_agents.environments import parallel_py_environment
-from tf_agents.environments import suite_mujoco
+from tf_agents.environments import suite_gym
+from tf_agents.environments import suite_atari
 from tf_agents.environments import tf_py_environment
 from tf_agents.eval import metric_utils
 from tf_agents.metrics import tf_metrics
@@ -72,8 +63,8 @@ from tf_agents.utils import common
 @gin.configurable
 def train_eval(
     root_dir,
-    env_name='HalfCheetah-v2',
-    env_load_fn=suite_mujoco.load,
+    env_name='LunarLander-v2',
+    env_load_fn=suite_gym.load,
     random_seed=0,
     # TODO(b/127576522): rename to policy_fc_layers.
     actor_fc_layers=(200, 100),
@@ -267,7 +258,7 @@ def main(_):
 if __name__ == '__main__':
   flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
                       'Root directory for writing logs/summaries/checkpoints.')
-  flags.DEFINE_string('env_name', 'HalfCheetah-v2', 'Name of an environment')
+  flags.DEFINE_string('env_name', 'LunarLander-v2', 'Name of an environment')
   flags.DEFINE_integer('replay_buffer_capacity', 1001,
                       'Replay buffer capacity per env.')
   flags.DEFINE_integer('num_parallel_environments', 30,
