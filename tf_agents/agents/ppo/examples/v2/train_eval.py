@@ -75,6 +75,8 @@ flags.DEFINE_integer('num_eval_episodes', 30,
                      'The number of episodes to run eval on.')
 flags.DEFINE_boolean('use_rnns', False,
                      'If true, use RNN for policy and value function.')
+flags.DEFINE_multi_string('gin_file', None, 'Paths to the gin-config files.')
+flags.DEFINE_multi_string('gin_param', None, 'Gin binding parameters.')
 FLAGS = flags.FLAGS
 
 
@@ -260,6 +262,7 @@ def train_eval(
 def main(_):
   logging.set_verbosity(logging.INFO)
   tf.compat.v1.enable_v2_behavior()
+  gin.parse_config_files_and_bindings(FLAGS.gin_file, FLAGS.gin_param)
   train_eval(
       FLAGS.root_dir,
       env_name=FLAGS.env_name,
