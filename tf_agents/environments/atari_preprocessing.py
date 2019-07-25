@@ -64,7 +64,7 @@ class AtariPreprocessing(gym_core.Wrapper):
     Args:
       env: Gym environment whose observations are preprocessed.
       frame_skip: int, the frequency at which the agent experiences the game.
-      terminal_on_life_loss: bool, If True, the step() method rㅈeturns
+      terminal_on_life_loss: bool, If True, the step() method returns
         is_terminal=True whenever a life is lost. See Mnih et al. 2015.
       screen_size: int, size of a resized Atari 2600 frame.
 
