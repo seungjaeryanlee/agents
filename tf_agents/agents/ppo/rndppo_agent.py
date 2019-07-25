@@ -316,9 +316,8 @@ class RNDPPOAgent(tf_agent.TFAgent):
         summarize_grads_and_vars=summarize_grads_and_vars,
         train_step_counter=train_step_counter)
 
-  # TODO(seungjaeryanlee): Allow without RND
-  def _init_rnd_normalizer(self, experience):
-    """Initialize normalization parameters for RND.
+  def init_normalizer(self, experience):
+    """Initialize normalization parameters.
 
     Args:
       experience: Trajectories with unnormalized observations.
@@ -333,7 +332,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
           time_steps.observation, outer_dims=[0, 1])
 
     # Update RND reward normalizer
-    if self._rnd_reward_normalizer:
+    if self._use_rnd and self._rnd_reward_normalizer:
       # Use normalized observations when computing RND loss
       normalized_observations = self._observation_normalizer.normalize(time_steps.observation, clip_value=5)
       intrinsic_rewards, _ = self.rnd_loss(normalized_observations, debug_summaries=self._debug_summaries)

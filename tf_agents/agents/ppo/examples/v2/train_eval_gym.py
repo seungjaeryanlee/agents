@@ -236,7 +236,7 @@ def train_eval(
 
       rnd_init_collect_driver.run()
       trajectories = rnd_init_replay_buffer.gather_all()
-      tf_agent._init_rnd_normalizer(experience=trajectories)
+      tf_agent.init_normalizer(experience=trajectories)
       rnd_init_replay_buffer.clear()
 
     def train_step():
