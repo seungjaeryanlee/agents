@@ -13,10 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A PPO Agent.
+"""A RNDPPO Agent.
 
 Implements the PPO algorithm from (Schulman, 2017):
 https://arxiv.org/abs/1707.06347
+
+Implements the RND algorithm from (Burda, 2018):
+https://arxiv.org/abs/1810.12894
+
+TODO Add description of RND
 
 PPO is a simplification of the TRPO algorithm, both of which add stability to
 policy gradient RL, while allowing multiple updates per batch of on-policy data,
@@ -86,6 +91,22 @@ PPOLossInfo = collections.namedtuple('PPOLossInfo', (
     'kl_penalty_loss',
 ))
 
+RNDPPOLossInfo = collections.namedtuple('RNDPPOLossInfo', (
+    'policy_gradient_loss',
+    'value_estimation_loss',
+    'l2_regularization_loss',
+    'entropy_regularization_loss',
+    'kl_penalty_loss',
+    'rnd_losses',
+    'avg_rnd_loss',
+))
+
+# TODO(seungjaeryanlee): This is a duplicate of RNDDQNAgent.mean_squared_loss.
+def mean_squared_loss(x, y, axis):
+  return tf.reduce_mean(
+    input_tensor=tf.compat.v1.losses.mean_squared_error(
+      x, y, reduction=tf.compat.v1.losses.Reduction.NONE),
+    axis=axis)
 
 def _normalize_advantages(advantages, axes=(0,), variance_epsilon=1e-8):
   adv_mean, adv_var = tf.nn.moments(x=advantages, axes=axes, keepdims=True)
@@ -104,32 +125,43 @@ class PPOAgent(tf_agent.TFAgent):
                optimizer=None,
                actor_net=None,
                value_net=None,
-               importance_ratio_clipping=0.0,
+               importance_ratio_clipping=0.1,
                lambda_value=0.95,
                discount_factor=0.99,
-               entropy_regularization=0.0,
+               entropy_regularization=0.001,
                policy_l2_reg=0.0,
                value_function_l2_reg=0.0,
                value_pred_loss_coef=0.5,
                num_epochs=25,
-               use_gae=False,
-               use_td_lambda_return=False,
+               use_gae=True,
+               use_td_lambda_return=True,
                normalize_rewards=True,
-               reward_norm_clipping=10.0,
+               reward_norm_clipping=1.0,
                normalize_observations=True,
+               observation_clip_value=5,
                log_prob_clipping=0.0,
                kl_cutoff_factor=2.0,
                kl_cutoff_coef=1000.0,
-               initial_adaptive_kl_beta=1.0,
+               initial_adaptive_kl_beta=0.0,
                adaptive_kl_target=0.01,
                adaptive_kl_tolerance=0.3,
                gradient_clipping=None,
+               # RND Parameters
+               use_rnd=True,
+               rnd_network=None,
+               target_rnd_network=None,
+               rnd_optimizer=None,
+               rnd_loss_fn=None,
+               # TODO(seungjaeryanlee): Update docstrings
+               rnd_normalize_rewards=True,
+               rnd_ext_reward_factor=2,
+               rnd_int_reward_factor=1,
                check_numerics=False,
-               debug_summaries=False,
+               debug_summaries=True,
                summarize_grads_and_vars=False,
                train_step_counter=None,
                name=None):
-    """Creates a PPO Agent.
+    """Creates a RNDPPO Agent.
 
     Args:
       time_step_spec: A `TimeStep` spec of the expected time_steps.
@@ -160,6 +192,8 @@ class PPOAgent(tf_agent.TFAgent):
         value_predictions)
       normalize_rewards: If true, keeps moving variance of rewards and
         normalizes incoming rewards.
+      rnd_normalize_rewards: If true, keeps moving variance of rewards and
+        normalizes incoming intrinsic rewards.
       reward_norm_clipping: Value above an below to clip normalized reward.
       normalize_observations: If true, keeps moving mean and variance of
         observations and normalizes incoming observations.
@@ -176,6 +210,13 @@ class PPOAgent(tf_agent.TFAgent):
         + tol) * adaptive_kl_target, or below (1 - tol) * adaptive_kl_target,
         will cause adaptive_kl_beta to be updated.
       gradient_clipping: Norm length to clip gradients.  Default: no clipping.
+      use_rnd: If True (default False), uses random network distillation for
+      intrinsic reward.
+      rnd_network: A tf_agents.network.Network to be used to calculate RND
+      intrinsic reward.
+      rnd_optimizer: The optimizer to use for training RND network.
+      rnd_loss_fn: A function for computing the RND errors loss. If None, a
+        default value of mean_squared_loss is used.
       check_numerics: If true, adds tf.debugging.check_numerics to help find
         NaN / Inf values. For debugging only.
       debug_summaries: A bool to gather debug summaries.
@@ -233,6 +274,8 @@ class PPOAgent(tf_agent.TFAgent):
       self._observation_normalizer = (
           tensor_normalizer.StreamingTensorNormalizer(
               time_step_spec.observation, scope='normalize_observations'))
+    if use_rnd:
+      self._observation_clip_value = observation_clip_value
 
     policy = greedy_policy.GreedyPolicy(
         ppo_policy.PPOPolicy(
@@ -255,6 +298,20 @@ class PPOAgent(tf_agent.TFAgent):
 
     self._action_distribution_spec = (self._actor_net.output_spec)
 
+    self._use_rnd = use_rnd
+    if self._use_rnd:
+      self._rnd_network = rnd_network
+      self._target_rnd_network = target_rnd_network
+      self._rnd_optimizer = rnd_optimizer
+      self._rnd_loss_fn = rnd_loss_fn or mean_squared_loss
+      self._rnd_ext_reward_factor = rnd_ext_reward_factor
+      self._rnd_int_reward_factor = rnd_int_reward_factor
+
+      self._rnd_reward_normalizer = None
+      if rnd_normalize_rewards:
+        self._rnd_reward_normalizer = tensor_normalizer.StreamingTensorNormalizer(
+            tensor_spec.TensorSpec([], tf.float32), scope='normalize_rnd_reward')
+
     super(PPOAgent, self).__init__(
         time_step_spec,
         action_spec,
@@ -264,6 +321,28 @@ class PPOAgent(tf_agent.TFAgent):
         debug_summaries=debug_summaries,
         summarize_grads_and_vars=summarize_grads_and_vars,
         train_step_counter=train_step_counter)
+
+  def init_normalizer(self, experience):
+    """Initialize normalization parameters.
+
+    Args:
+      experience: Trajectories with unnormalized observations.
+    """
+    # Get individual tensors from transitions.
+    (time_steps, _, _) = trajectory.to_transition(experience)
+
+    # Update Observation normalizer
+    # TODO(seungjaeryanlee): Try separating RND observation normalizer again?
+    if self._observation_normalizer:
+      self._observation_normalizer.update(
+          time_steps.observation, outer_dims=[0, 1])
+
+    # Update RND reward normalizer
+    if self._use_rnd and self._rnd_reward_normalizer:
+      # Use normalized observations when computing RND loss
+      normalized_observations = self._observation_normalizer.normalize(time_steps.observation, clip_value=5)
+      intrinsic_rewards, _ = self.rnd_loss(normalized_observations, debug_summaries=self._debug_summaries)
+      self._rnd_reward_normalizer.update(intrinsic_rewards, outer_dims=[0, 1])
 
   @property
   def actor_net(self):
@@ -333,7 +412,7 @@ class PPOAgent(tf_agent.TFAgent):
 
     Returns:
       A tf_agent.LossInfo named tuple with the total_loss and all intermediate
-        losses in the extra field contained in a PPOLossInfo named tuple.
+        losses in the extra field contained in a RNDPPOLossInfo named tuple.
     """
     # Evaluate the current policy on timesteps.
 
@@ -376,17 +455,33 @@ class PPOAgent(tf_agent.TFAgent):
         policy_gradient_loss + value_estimation_loss + l2_regularization_loss +
         entropy_regularization_loss + kl_penalty_loss)
 
-    return tf_agent.LossInfo(
-        total_loss,
-        PPOLossInfo(
-            policy_gradient_loss=policy_gradient_loss,
-            value_estimation_loss=value_estimation_loss,
-            l2_regularization_loss=l2_regularization_loss,
-            entropy_regularization_loss=entropy_regularization_loss,
-            kl_penalty_loss=kl_penalty_loss,
-        ))
+    if self._use_rnd:
+      # TODO(seungjaeryanlee): Shouldn't normalized observation be used everywhere else too?
+      normalized_observations = self._observation_normalizer.normalize(time_steps.observation, clip_value=5)
+      rnd_losses, avg_rnd_loss = self.rnd_loss(normalized_observations, debug_summaries=debug_summaries)
+      return tf_agent.LossInfo(
+          total_loss,
+          RNDPPOLossInfo(
+              policy_gradient_loss=policy_gradient_loss,
+              value_estimation_loss=value_estimation_loss,
+              l2_regularization_loss=l2_regularization_loss,
+              entropy_regularization_loss=entropy_regularization_loss,
+              kl_penalty_loss=kl_penalty_loss,
+              rnd_losses=rnd_losses,
+              avg_rnd_loss=avg_rnd_loss,
+          ))
+    else:
+      return tf_agent.LossInfo(
+          total_loss,
+          PPOLossInfo(
+              policy_gradient_loss=policy_gradient_loss,
+              value_estimation_loss=value_estimation_loss,
+              l2_regularization_loss=l2_regularization_loss,
+              entropy_regularization_loss=entropy_regularization_loss,
+              kl_penalty_loss=kl_penalty_loss,
+          ))
 
-  def compute_return_and_advantage(self, next_time_steps, value_preds):
+  def compute_return_and_advantage(self, next_time_steps, value_preds, intrinsic_rewards=None):
     """Compute the Monte Carlo return and advantage.
 
     Normalazation will be applied to the computed returns and advantages if
@@ -397,6 +492,7 @@ class PPOAgent(tf_agent.TFAgent):
       value_preds: Batched value predction tensor. Should have one more entry in
         time index than time_steps, with the final value corresponding to the
         value prediction of the final state.
+      TODO(seungjaeryanlee): Add description of intrinsic_rewards.
 
     Returns:
       tuple of (return, normalized_advantage), both are batched tensors.
@@ -405,10 +501,14 @@ class PPOAgent(tf_agent.TFAgent):
         self._discount_factor, dtype=tf.float32)
 
     rewards = next_time_steps.reward
+
+    # Summarize rewards before they get normalized below.
     if self._debug_summaries:
-      # Summarize rewards before they get normalized below.
       tf.compat.v2.summary.histogram(
           name='rewards', data=rewards, step=self.train_step_counter)
+      if self._use_rnd:
+        tf.compat.v2.summary.histogram(
+            name='rnd_rewards', data=intrinsic_rewards, step=self.train_step_counter)
 
     # Normalize rewards if self._reward_normalizer is defined.
     if self._reward_normalizer:
@@ -419,6 +519,22 @@ class PPOAgent(tf_agent.TFAgent):
             name='rewards_normalized',
             data=rewards,
             step=self.train_step_counter)
+
+    # Normalize intrinsic rewards if self._rnd_reward_normalizer is defined.
+    if self._use_rnd and self._rnd_reward_normalizer:
+      intrinsic_rewards = self._rnd_reward_normalizer.normalize(
+          intrinsic_rewards, center_mean=False, clip_value=-1)
+      if self._debug_summaries:
+        tf.compat.v2.summary.histogram(
+            name='rnd_rewards_normalized',
+            data=intrinsic_rewards,
+            step=self.train_step_counter)
+
+    # Add intrinsic rewards
+    if self._use_rnd:
+      if intrinsic_rewards is not None:
+        rewards = (self._rnd_ext_reward_factor * rewards
+                   + self._rnd_int_reward_factor * intrinsic_rewards)
 
     # Make discount 0.0 at end of each episode to restart cumulative sum
     #   end of each episode.
@@ -455,9 +571,11 @@ class PPOAgent(tf_agent.TFAgent):
     return returns, normalized_advantages
 
   def _train(self, experience, weights):
+    # NOTE(seungjaeryanlee): These experience are not normalized!
     # Get individual tensors from transitions.
     (time_steps, policy_steps_,
      next_time_steps) = trajectory.to_transition(experience)
+
     actions = policy_steps_.action
 
     if self._debug_summaries:
@@ -487,6 +605,7 @@ class PPOAgent(tf_agent.TFAgent):
     batch_size = nest_utils.get_outer_shape(time_steps, self._time_step_spec)[0]
     policy_state = self._collect_policy.get_initial_state(batch_size=batch_size)
 
+    # NOTE(seungjaeryanlee): Apply value network uses observation_normalizer defined in collect_policy
     value_preds, unused_policy_state = self._collect_policy.apply_value_network(
         experience.observation, experience.step_type, policy_state=policy_state)
     value_preds = tf.stop_gradient(value_preds)
@@ -498,8 +617,16 @@ class PPOAgent(tf_agent.TFAgent):
     else:
       weights *= valid_mask
 
-    returns, normalized_advantages = self.compute_return_and_advantage(
-        next_time_steps, value_preds)
+    # Compute intrinsic reward via RND
+    if self._use_rnd:
+      # TODO(seungjaeryanlee): Should use DivideBy255 if I create separate RND streaming normalizer
+      normalized_observations = self._observation_normalizer.normalize(time_steps.observation, clip_value=5)
+      intrinsic_rewards, _ = self.rnd_loss(normalized_observations, debug_summaries=self._debug_summaries)
+      returns, normalized_advantages = self.compute_return_and_advantage(
+          next_time_steps, value_preds, intrinsic_rewards=intrinsic_rewards)
+    else:
+      returns, normalized_advantages = self.compute_return_and_advantage(
+          next_time_steps, value_preds)
 
     # Loss tensors across batches will be aggregated for summaries.
     policy_gradient_losses = []
@@ -507,6 +634,8 @@ class PPOAgent(tf_agent.TFAgent):
     l2_regularization_losses = []
     entropy_regularization_losses = []
     kl_penalty_losses = []
+    if self._use_rnd:
+      avg_rnd_losses = []
 
     loss_info = None  # TODO(b/123627451): Remove.
     # For each epoch, create its own train op that depends on the previous one.
@@ -518,7 +647,7 @@ class PPOAgent(tf_agent.TFAgent):
             (i_epoch == 0 or i_epoch == self._num_epochs - 1))
 
         # Build one epoch train op.
-        with tf.GradientTape() as tape:
+        with tf.GradientTape(persistent=True) as tape:
           loss_info = self.get_epoch_loss(
               time_steps, actions, act_log_probs, returns,
               normalized_advantages, action_distribution_parameters, weights,
@@ -534,6 +663,12 @@ class PPOAgent(tf_agent.TFAgent):
           grads_and_vars = eager_utils.clip_gradient_norms(
               grads_and_vars, self._gradient_clipping)
 
+        if self._use_rnd:
+          rnd_variables_to_train = self._rnd_network.trainable_weights
+          rnd_grads = tape.gradient(loss_info.extra.avg_rnd_loss, rnd_variables_to_train)
+          # Tuple is used for py3, where zip is a generator producing values once.
+          rnd_grads_and_vars = tuple(zip(rnd_grads, rnd_variables_to_train))
+
         # If summarize_gradients, create functions for summarizing both
         # gradients and variables.
         if self._summarize_grads_and_vars and debug_summaries:
@@ -541,9 +676,17 @@ class PPOAgent(tf_agent.TFAgent):
                                               self.train_step_counter)
           eager_utils.add_variables_summaries(grads_and_vars,
                                               self.train_step_counter)
+          if self._use_rnd:
+            eager_utils.add_gradients_summaries(rnd_grads_and_vars,
+                                                self.train_step_counter)
+            eager_utils.add_variables_summaries(rnd_grads_and_vars,
+                                                self.train_step_counter)
 
         self._optimizer.apply_gradients(
             grads_and_vars, global_step=self.train_step_counter)
+        if self._use_rnd:
+          self._rnd_optimizer.apply_gradients(
+              rnd_grads_and_vars, global_step=self.train_step_counter)
 
         policy_gradient_losses.append(loss_info.extra.policy_gradient_loss)
         value_estimation_losses.append(loss_info.extra.value_estimation_loss)
@@ -551,6 +694,8 @@ class PPOAgent(tf_agent.TFAgent):
         entropy_regularization_losses.append(
             loss_info.extra.entropy_regularization_loss)
         kl_penalty_losses.append(loss_info.extra.kl_penalty_loss)
+        if self._use_rnd:
+          avg_rnd_losses.append(loss_info.extra.avg_rnd_loss)
 
     # After update epochs, update adaptive kl beta, then update observation
     #   normalizer and reward normalizer.
@@ -565,12 +710,13 @@ class PPOAgent(tf_agent.TFAgent):
     if self._observation_normalizer:
       self._observation_normalizer.update(
           time_steps.observation, outer_dims=[0, 1])
-    else:
-      # TODO(b/127661780): Verify performance of reward_normalizer when obs are
-      #                    not normalized
-      if self._reward_normalizer:
-        self._reward_normalizer.update(next_time_steps.reward,
-                                       outer_dims=[0, 1])
+    if self._reward_normalizer:
+      self._reward_normalizer.update(next_time_steps.reward,
+                                      outer_dims=[0, 1])
+    if self._use_rnd and self._rnd_reward_normalizer:
+      self._rnd_reward_normalizer.update(intrinsic_rewards,
+                                          outer_dims=[0, 1])
+
 
     loss_info = tf.nest.map_structure(tf.identity, loss_info)
 
@@ -584,6 +730,7 @@ class PPOAgent(tf_agent.TFAgent):
       total_entropy_regularization_loss = tf.add_n(
           entropy_regularization_losses)
       total_kl_penalty_loss = tf.add_n(kl_penalty_losses)
+
       tf.compat.v2.summary.scalar(
           name='policy_gradient_loss',
           data=total_policy_gradient_loss,
@@ -605,7 +752,13 @@ class PPOAgent(tf_agent.TFAgent):
           name='kl_penalty_loss',
           data=total_kl_penalty_loss,
           step=self.train_step_counter)
+      if self._use_rnd:
+        tf.compat.v2.summary.scalar(
+            name='avg_rnd_loss',
+            data=tf.add_n(avg_rnd_losses) / len(avg_rnd_losses),
+            step=self.train_step_counter)
 
+      # TODO(seungjaeryanlee) Should RND loss be added here?
       total_abs_loss = (
           tf.abs(total_policy_gradient_loss) +
           tf.abs(total_value_estimation_loss) +
@@ -630,6 +783,27 @@ class PPOAgent(tf_agent.TFAgent):
               step=self.train_step_counter)
 
     return loss_info
+
+  def rnd_loss(self, normalized_observations, debug_summaries=False):
+    """Compute RND loss.
+
+    Args:
+      normalized_observations: Normalized observations.
+      debug_summaries: True if debug summaries should be created.
+
+    """
+    # Prediction and Target have shape (# Env, # Timesteps, Final FC Layer)
+    rnd_prediction, _ = self._rnd_network(normalized_observations)
+    rnd_target, _ = self._target_rnd_network(normalized_observations)
+    # rnd_losses have shape (# Env, # Timesteps)
+    rnd_losses = self._rnd_loss_fn(rnd_prediction, rnd_target, axis=2)
+    avg_rnd_loss = tf.reduce_mean(rnd_losses)
+
+    if debug_summaries:
+      tf.compat.v2.summary.histogram(
+          name='rnd_loss', data=avg_rnd_loss, step=self.train_step_counter)
+
+    return rnd_losses, avg_rnd_loss
 
   def l2_regularization_loss(self, debug_summaries=False):
     if self._policy_l2_reg > 0 or self._value_function_l2_reg > 0:
@@ -717,9 +891,10 @@ class PPOAgent(tf_agent.TFAgent):
     Returns:
       value_estimation_loss: A scalar value_estimation_loss loss.
     """
-    observation = time_steps.observation
+    normalized_observations = self._observation_normalizer.normalize(time_steps.observation, clip_value=5)
+
     if debug_summaries:
-      observation_list = tf.nest.flatten(observation)
+      observation_list = tf.nest.flatten(normalized_observations)
       show_observation_index = len(observation_list) != 1
       for i, single_observation in enumerate(observation_list):
         observation_name = ('observations_{}'.format(i)
@@ -733,7 +908,7 @@ class PPOAgent(tf_agent.TFAgent):
     policy_state = self._collect_policy.get_initial_state(batch_size=batch_size)
 
     value_preds, unused_policy_state = self._collect_policy.apply_value_network(
-        time_steps.observation, time_steps.step_type, policy_state=policy_state)
+        normalized_observations, time_steps.step_type, policy_state=policy_state)
     value_estimation_error = tf.math.squared_difference(returns, value_preds)
     value_estimation_error *= weights
 

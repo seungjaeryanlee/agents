@@ -50,7 +50,7 @@ from absl import logging
 import gin
 import tensorflow as tf
 
-from tf_agents.agents.ppo import rndppo_agent
+from tf_agents.agents.ppo import ppo_agent
 from tf_agents.drivers import dynamic_episode_driver
 from tf_agents.environments import parallel_py_environment
 from tf_agents.environments import tf_py_environment
@@ -187,14 +187,14 @@ def train_eval(
         fc_layer_params=(512,),
         name='TargetRNDNetwork')
 
-    tf_agent = rndppo_agent.RNDPPOAgent(
+    tf_agent = ppo_agent.PPOAgent(
         tf_env.time_step_spec(),
         tf_env.action_spec(),
         use_rnd=use_rnd,
         rnd_network=rnd_net,
         target_rnd_network=target_rnd_net,
         rnd_optimizer=tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate),
-        rnd_loss_fn=rndppo_agent.mean_squared_loss,
+        rnd_loss_fn=ppo_agent.mean_squared_loss,
         optimizer=optimizer,
         actor_net=actor_net,
         value_net=value_net,
