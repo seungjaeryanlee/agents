@@ -335,9 +335,8 @@ class RNDPPOAgent(tf_agent.TFAgent):
     # Update RND reward normalizer
     if self._rnd_reward_normalizer:
       # Use normalized observations when computing RND loss
-      observations = self._observation_normalizer.normalize(time_steps.observation, clip_value=5)
-      time_steps = time_steps._replace(observation=observations)
-      intrinsic_rewards, _ = self.rnd_loss(time_steps, debug_summaries=self._debug_summaries)
+      normalized_observations = self._observation_normalizer.normalize(time_steps.observation, clip_value=5)
+      intrinsic_rewards, _ = self.rnd_loss(normalized_observations, debug_summaries=self._debug_summaries)
       self._rnd_reward_normalizer.update(intrinsic_rewards, outer_dims=[0, 1])
 
   @property
@@ -453,9 +452,8 @@ class RNDPPOAgent(tf_agent.TFAgent):
 
     if self._use_rnd:
       # TODO(seungjaeryanlee): Shouldn't normalized observation be used everywhere else too?
-      observations = self._observation_normalizer.normalize(time_steps.observation, clip_value=5)
-      rnd_time_steps = time_steps._replace(observation=observations)
-      rnd_losses, avg_rnd_loss = self.rnd_loss(rnd_time_steps, debug_summaries=debug_summaries)
+      normalized_observations = self._observation_normalizer.normalize(time_steps.observation, clip_value=5)
+      rnd_losses, avg_rnd_loss = self.rnd_loss(normalized_observations, debug_summaries=debug_summaries)
       return tf_agent.LossInfo(
           total_loss,
           RNDPPOLossInfo(
@@ -618,9 +616,8 @@ class RNDPPOAgent(tf_agent.TFAgent):
     if self._use_rnd:
       # TODO(seungjaeryanlee): Should use DivideBy255 if I create separate RND streaming normalizer
       # TODO(seungjaeryanlee): RND loss only needs observation - pass observations?
-      observations = self._observation_normalizer.normalize(time_steps.observation, clip_value=5)
-      rnd_time_steps = time_steps._replace(observation=observations)
-      intrinsic_rewards, _ = self.rnd_loss(rnd_time_steps, debug_summaries=self._debug_summaries)
+      normalized_observations = self._observation_normalizer.normalize(time_steps.observation, clip_value=5)
+      intrinsic_rewards, _ = self.rnd_loss(normalized_observations, debug_summaries=self._debug_summaries)
       returns, normalized_advantages = self.compute_return_and_advantage(
           next_time_steps, value_preds, intrinsic_rewards=intrinsic_rewards)
     else:
@@ -783,19 +780,17 @@ class RNDPPOAgent(tf_agent.TFAgent):
 
     return loss_info
 
-  def rnd_loss(self, time_steps, debug_summaries=False):
+  def rnd_loss(self, normalized_observations, debug_summaries=False):
     """Compute RND loss.
 
     Args:
-      time_steps: Timesteps with normalized observations.
+      normalized_observations: Normalized observations.
       debug_summaries: True if debug summaries should be created.
 
     """
-    observations = time_steps.observation
-
     # Prediction and Target have shape (# Env, # Timesteps, Final FC Layer)
-    rnd_prediction, _ = self._rnd_network(observations)
-    rnd_target, _ = self._target_rnd_network(observations)
+    rnd_prediction, _ = self._rnd_network(normalized_observations)
+    rnd_target, _ = self._target_rnd_network(normalized_observations)
     # rnd_losses have shape (# Env, # Timesteps)
     rnd_losses = self._rnd_loss_fn(rnd_prediction, rnd_target, axis=2)
     avg_rnd_loss = tf.reduce_mean(rnd_losses)
