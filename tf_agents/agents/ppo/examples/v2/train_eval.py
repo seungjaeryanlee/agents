@@ -15,7 +15,7 @@
 
 r"""Train and Eval PPO.
 
-To run:
+To run HalfCheetah with PPO:
 
 ```bash
 tensorboard --logdir $HOME/tmp/ppo/gym/HalfCheetah-v2/ --port 2223 &
@@ -24,6 +24,18 @@ python tf_agents/agents/ppo/examples/v2/train_eval.py \
   --root_dir=$HOME/tmp/ppo/gym/HalfCheetah-v2/ \
   --logtostderr
 ```
+
+To run LunarLander with PPO:
+
+```bash
+tensorboard --logdir $HOME/tmp/ppo/gym/LunarLander-v2/ --port 2223 &
+
+python tf_agents/agents/ppo/examples/v2/train_eval.py \
+  --root_dir=$HOME/tmp/ppo/gym/LunarLander-v2/ \
+  --logtostderr \
+  --gin_file=tf_agents/environments/configs/rnd.gin
+```
+
 """
 
 from __future__ import absolute_import

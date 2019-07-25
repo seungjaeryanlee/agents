@@ -1,0 +1,26 @@
+#-*-Python-*-
+# TODO(seungjaeryanlee): KeyError: "Ambiguous selector 'train_eval', matches ['tf_agents.agents.ppo.examples.v2.train_eval.train_eval', '__main__.train_eval']."
+import tf_agents.environments.suite_gym
+import tf_agents.agents.ppo.examples.v2.train_eval
+import tf_agents.agents.ppo.ppo_agent
+
+## Configure train_eval()
+train_eval.env_load_fn = %ENV_LOAD_FN
+ENV_LOAD_FN = suite_gym.load
+
+train_eval.actor_fc_layers = (512, 448)
+train_eval.value_fc_layers = (200, 100)
+train_eval.num_environment_steps = 2000000000
+train_eval.collect_episodes_per_iteration = 16
+train_eval.num_parallel_environments = 16
+train_eval.replay_buffer_capacity = 129
+train_eval.num_epochs = 4
+train_eval.debug_summaries = True
+
+## Configure suite_gym()
+ENVIRONMENT = @suite_gym.load()
+suite_gym.load.environment_name = %ENVIRONMENT_NAME
+ENVIRONMENT_NAME = 'LunarLander-v2'
+
+## Configure PPOAgent()
+PPOAgent.use_rnd = True
