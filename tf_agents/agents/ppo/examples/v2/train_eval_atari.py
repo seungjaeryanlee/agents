@@ -275,11 +275,11 @@ def train_eval(
         )
 
       start_time = time.time()
-      total_loss, _ = train_step()
+      collect_driver.run()
+      collect_time += time.time() - start_time
 
       start_time = time.time()
-      trajectories = replay_buffer.gather_all()
-      total_loss, _ = tf_agent.train(experience=trajectories)
+      total_loss, _ = train_step()
       replay_buffer.clear()
       train_time += time.time() - start_time
 
