@@ -565,7 +565,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
     return returns, normalized_advantages
 
   def _train(self, experience, weights):
-    # TODO(seungjaeryanlee) These experience are not normalized!
+    # NOTE(seungjaeryanlee): These experience are not normalized!
     # Get individual tensors from transitions.
     (time_steps, policy_steps_,
      next_time_steps) = trajectory.to_transition(experience)
@@ -614,7 +614,6 @@ class RNDPPOAgent(tf_agent.TFAgent):
     # Compute intrinsic reward via RND
     if self._use_rnd:
       # TODO(seungjaeryanlee): Should use DivideBy255 if I create separate RND streaming normalizer
-      # TODO(seungjaeryanlee): RND loss only needs observation - pass observations?
       normalized_observations = self._observation_normalizer.normalize(time_steps.observation, clip_value=5)
       intrinsic_rewards, _ = self.rnd_loss(normalized_observations, debug_summaries=self._debug_summaries)
       returns, normalized_advantages = self.compute_return_and_advantage(
@@ -886,9 +885,10 @@ class RNDPPOAgent(tf_agent.TFAgent):
     Returns:
       value_estimation_loss: A scalar value_estimation_loss loss.
     """
-    observation = time_steps.observation
+    normalized_observations = self._observation_normalizer.normalize(time_steps.observation, clip_value=5)
+
     if debug_summaries:
-      observation_list = tf.nest.flatten(observation)
+      observation_list = tf.nest.flatten(normalized_observations)
       show_observation_index = len(observation_list) != 1
       for i, single_observation in enumerate(observation_list):
         observation_name = ('observations_{}'.format(i)
@@ -902,7 +902,7 @@ class RNDPPOAgent(tf_agent.TFAgent):
     policy_state = self._collect_policy.get_initial_state(batch_size=batch_size)
 
     value_preds, unused_policy_state = self._collect_policy.apply_value_network(
-        time_steps.observation, time_steps.step_type, policy_state=policy_state)
+        normalized_observations, time_steps.step_type, policy_state=policy_state)
     value_estimation_error = tf.math.squared_difference(returns, value_preds)
     value_estimation_error *= weights
 
