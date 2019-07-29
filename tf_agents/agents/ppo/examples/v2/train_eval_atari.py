@@ -247,9 +247,23 @@ def train_eval(
       tf_agent.init_normalizer(experience=trajectories)
       rnd_init_replay_buffer.clear()
 
+    # Dataset generates trajectories with shape [Bx2x...]
+    dataset = replay_buffer.as_dataset(
+        num_parallel_calls=3,
+        sample_batch_size=num_parallel_environments,
+        num_steps=128 + 1).prefetch(3)
+    iterator = iter(dataset)
+
+    # TODO(seungjaeryanlee): assertion failed:
+    # [TFUniformReplayBuffer is empty. Make sure to add items before sampling the buffer.]
     def train_step():
-      trajectories = replay_buffer.gather_all()
-      return tf_agent.train(experience=trajectories)
+      trajectory = next(iterator)[0]
+      loss_info = tf_agent.train(trajectory)
+      # TODO(seungjaeryanlee): Can't use for loop?
+      # AttributeError: Tensor.op is meaningless when eager execution is enabled.
+      # for trajectory, _ in dataset:
+      #   loss_info = tf_agent.train(trajectory)
+      return loss_info
 
     if use_tf_functions:
       # TODO(b/123828980): Enable once the cause for slowdown was identified.

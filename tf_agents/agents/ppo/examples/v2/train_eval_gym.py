@@ -223,7 +223,7 @@ def train_eval(
 
     # Initialize RND normalization parameters
     # TODO(seungjaeryanlee): Change parameters
-    for _ in range(20):
+    for _ in range(0):
       rnd_init_replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
           tf_agent.collect_data_spec,
           batch_size=num_parallel_environments,
@@ -239,9 +239,38 @@ def train_eval(
       tf_agent.init_normalizer(experience=trajectories)
       rnd_init_replay_buffer.clear()
 
+    ## AFTER
+    # Dataset generates trajectories with shape [Bx2x...]
+    # dataset = replay_buffer.as_dataset(
+    #     num_parallel_calls=3,
+    #     sample_batch_size=batch_size,
+    #     num_steps=2).prefetch(3)
+    # tf.print(dataset)
+    dataset = replay_buffer.as_dataset(
+                 sample_batch_size=30,
+                 num_steps=64+1,
+                 num_parallel_calls=1
+    ).prefetch(3)
+    iterator = iter(dataset)
+
     def train_step():
-      trajectories = replay_buffer.gather_all()
-      return tf_agent.train(experience=trajectories)
+      experience, _ = next(iterator)
+      loss_info = tf_agent.train(experience)
+      # TODO(seungjaeryanlee): Can't use for loop?
+      # AttributeError: Tensor.op is meaningless when eager execution is enabled.
+      # for experience, _ in dataset:
+      #   loss_info = tf_agent.train(experience)
+      return loss_info
+
+    ## BEFORE
+    # def train_step():
+    #   experience = replay_buffer.gather_all()
+    #   loss_info = tf_agent.train(experience)
+    #   # TODO(seungjaeryanlee): Can't use for loop?
+    #   # AttributeError: Tensor.op is meaningless when eager execution is enabled.
+    #   # for experience, _ in dataset:
+    #   #   loss_info = tf_agent.train(experience)
+    #   return loss_info
 
     if use_tf_functions:
       # TODO(b/123828980): Enable once the cause for slowdown was identified.
