@@ -142,16 +142,25 @@ def train_eval(
       value_net = value_network.ValueNetwork(
           tf_env.observation_spec(), fc_layer_params=value_fc_layers)
 
-    rnd_net = encoding_network.EncodingNetwork(
-        tf_env.observation_spec(),
-        fc_layer_params=actor_fc_layers,
-        name='PredictorRNDNetwork')
+    if use_rnd:
+      rnd_net = encoding_network.EncodingNetwork(
+          tf_env.observation_spec(),
+          fc_layer_params=actor_fc_layers,
+          name='PredictorRNDNetwork')
 
-    # TODO(seungjaeryanlee): Better way of passing target network? OpenAI's implementation is similar though.
-    target_rnd_net = encoding_network.EncodingNetwork(
-        tf_env.observation_spec(),
-        fc_layer_params=actor_fc_layers,
-        name='TargetRNDNetwork')
+      # TODO(seungjaeryanlee): Better way of passing target network? OpenAI's implementation is similar though.
+      target_rnd_net = encoding_network.EncodingNetwork(
+          tf_env.observation_spec(),
+          fc_layer_params=actor_fc_layers,
+          name='TargetRNDNetwork')
+
+      rnd_optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate)
+      rnd_loss_fn = ppo_agent.mean_squared_loss
+    else:
+      rnd_net = None
+      target_rnd_net = None
+      rnd_optimizer = None
+      rnd_loss_fn = None
 
     tf_agent = ppo_agent.PPOAgent(
         tf_env.time_step_spec(),
@@ -160,8 +169,8 @@ def train_eval(
         use_rnd=use_rnd,
         rnd_network=rnd_net,
         target_rnd_network=target_rnd_net,
-        rnd_optimizer=tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate),
-        rnd_loss_fn=ppo_agent.mean_squared_loss,
+        rnd_optimizer=rnd_optimizer,
+        rnd_loss_fn=rnd_loss_fn,
         actor_net=actor_net,
         value_net=value_net,
         num_epochs=num_epochs,
