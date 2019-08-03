@@ -82,12 +82,17 @@ def train_eval(
     root_dir,
     env_name='LunarLander-v2',
     env_load_fn=suite_gym.load,
+    gym_env_wrappers=[],
     random_seed=0,
     # TODO(b/127576522): rename to policy_fc_layers.
+    actor_conv_layers=None,
     actor_fc_layers=(200, 100),
+    value_conv_layers=None,
     value_fc_layers=(200, 100),
     use_rnns=False,
     use_rnd=False,
+    rnd_conv_layers=None,
+    rnd_layers=(200, 100),
     # Params for collect
     num_environment_steps=10000000,
     collect_episodes_per_iteration=30,
@@ -129,10 +134,10 @@ def train_eval(
   with tf.compat.v2.summary.record_if(
       lambda: tf.math.equal(global_step % summary_interval, 0)):
     tf.compat.v1.set_random_seed(random_seed)
-    eval_tf_env = tf_py_environment.TFPyEnvironment(env_load_fn(env_name))
+    eval_tf_env = tf_py_environment.TFPyEnvironment(env_load_fn(env_name, gym_env_wrappers=gym_env_wrappers))
     tf_env = tf_py_environment.TFPyEnvironment(
         parallel_py_environment.ParallelPyEnvironment(
-            [lambda: env_load_fn(env_name)] * num_parallel_environments))
+            [lambda: env_load_fn(env_name, gym_env_wrappers=gym_env_wrappers)] * num_parallel_environments))
     optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate)
 
     if use_rnns:
@@ -149,20 +154,24 @@ def train_eval(
       actor_net = actor_distribution_network.ActorDistributionNetwork(
           tf_env.observation_spec(),
           tf_env.action_spec(),
+          conv_layer_params=actor_conv_layers,
           fc_layer_params=actor_fc_layers)
       value_net = value_network.ValueNetwork(
-          tf_env.observation_spec(), fc_layer_params=value_fc_layers)
+          tf_env.observation_spec(),
+          conv_layer_params=value_conv_layers,
+          fc_layer_params=value_fc_layers)
 
     if use_rnd:
       rnd_net = encoding_network.EncodingNetwork(
           tf_env.observation_spec(),
-          fc_layer_params=actor_fc_layers,
+          conv_layer_params=rnd_conv_layers,
+          fc_layer_params=rnd_layers,
           name='PredictorRNDNetwork')
 
       # TODO(seungjaeryanlee): Better way of passing target network? OpenAI's implementation is similar though.
       target_rnd_net = encoding_network.EncodingNetwork(
           tf_env.observation_spec(),
-          fc_layer_params=actor_fc_layers,
+          fc_layer_params=rnd_layers,
           name='TargetRNDNetwork')
 
       rnd_optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate)
