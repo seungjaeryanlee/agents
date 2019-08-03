@@ -158,7 +158,6 @@ def train_eval(
           fc_layer_params=rnd_layers,
           name='PredictorRNDNetwork')
 
-      # TODO(seungjaeryanlee): Better way of passing target network? OpenAI's implementation is similar though.
       target_rnd_net = encoding_network.EncodingNetwork(
           tf_env.observation_spec(),
           fc_layer_params=rnd_layers,

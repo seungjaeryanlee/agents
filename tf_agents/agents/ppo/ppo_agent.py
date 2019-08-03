@@ -101,7 +101,6 @@ RNDPPOLossInfo = collections.namedtuple('RNDPPOLossInfo', (
     'avg_rnd_loss',
 ))
 
-# TODO(seungjaeryanlee): This is a duplicate of RNDDQNAgent.mean_squared_loss.
 def mean_squared_loss(x, y, axis):
   return tf.reduce_mean(
     input_tensor=tf.compat.v1.losses.mean_squared_error(
@@ -214,9 +213,16 @@ class PPOAgent(tf_agent.TFAgent):
       intrinsic reward.
       rnd_network: A tf_agents.network.Network to be used to calculate RND
       intrinsic reward.
+      rnd_network: A tf_agents.network.Network to be used to calculate RND
+      intrinsic reward. This network serves as a target and is never trained.
       rnd_optimizer: The optimizer to use for training RND network.
       rnd_loss_fn: A function for computing the RND errors loss. If None, a
         default value of mean_squared_loss is used.
+      rnd_normalize_rewards: If True (default True), RND intrinsic rewards
+        are normalized.
+      rnd_ext_reward_factor: Weight for the extrinsic reward. Ignored if RND
+        is not used.
+      rnd_ext_reward_factor: Weight for the intrinsic reward.
       check_numerics: If true, adds tf.debugging.check_numerics to help find
         NaN / Inf values. For debugging only.
       debug_summaries: A bool to gather debug summaries.
@@ -492,7 +498,8 @@ class PPOAgent(tf_agent.TFAgent):
       value_preds: Batched value predction tensor. Should have one more entry in
         time index than time_steps, with the final value corresponding to the
         value prediction of the final state.
-      TODO(seungjaeryanlee): Add description of intrinsic_rewards.
+      intrinsic_rewards: Batched intrinsic reward tensor. If RND is not used,
+        a value of None is given.
 
     Returns:
       tuple of (return, normalized_advantage), both are batched tensors.
@@ -571,7 +578,7 @@ class PPOAgent(tf_agent.TFAgent):
     return returns, normalized_advantages
 
   def _train(self, experience, weights):
-    # NOTE(seungjaeryanlee): These experience are not normalized!
+    # These experience are not normalized
     # Get individual tensors from transitions.
     (time_steps, policy_steps_,
      next_time_steps) = trajectory.to_transition(experience)
@@ -605,7 +612,8 @@ class PPOAgent(tf_agent.TFAgent):
     batch_size = nest_utils.get_outer_shape(time_steps, self._time_step_spec)[0]
     policy_state = self._collect_policy.get_initial_state(batch_size=batch_size)
 
-    # NOTE(seungjaeryanlee): Apply value network uses observation_normalizer defined in collect_policy
+    # Observation_normalizer is automatically used in collect_policy, so
+    # an unnormalized experience.observation is given
     value_preds, unused_policy_state = self._collect_policy.apply_value_network(
         experience.observation, experience.step_type, policy_state=policy_state)
     value_preds = tf.stop_gradient(value_preds)
