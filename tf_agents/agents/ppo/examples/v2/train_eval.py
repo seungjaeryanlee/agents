@@ -34,17 +34,6 @@ python tf_agents/agents/ppo/examples/v2/train_eval.py \
   --root_dir=$HOME/tmp/rndppo/gym/LunarLander-v2/ \
   --logtostderr --use_rnd
 ```
-
-To run with RND on MountainCar-v2:
-
-```bash
-tensorboard --logdir $HOME/tmp/rndppo/gym/MountainCar-v2/ --port 2223 &
-
-python tf_agents/agents/ppo/examples/v2/train_eval.py \
-  --root_dir=$HOME/tmp/rndppo/gym/MountainCar-v2/ \
-  --gin_file=tf_agents/environments/configs/rnd.gin \
-  --logtostderr
-```
 """
 
 from __future__ import absolute_import
