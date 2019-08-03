@@ -53,12 +53,9 @@ import tensorflow as tf
 from tf_agents.agents.ppo import ppo_agent
 from tf_agents.drivers import dynamic_episode_driver
 from tf_agents.environments import parallel_py_environment
-from tf_agents.environments import tf_py_environment
-from tf_agents.environments import suite_gym
 from tf_agents.environments import suite_atari
+from tf_agents.environments import tf_py_environment
 from tf_agents.environments.suite_atari import DEFAULT_ATARI_GYM_WRAPPERS_WITH_STACKING
-from tf_agents.environments.atari_preprocessing import AtariPreprocessing
-from tf_agents.environments.atari_wrappers import FrameStack4
 from tf_agents.eval import metric_utils
 from tf_agents.metrics import tf_metrics
 from tf_agents.networks import actor_distribution_network
@@ -92,19 +89,26 @@ flags.DEFINE_boolean('use_rnns', False,
                      'If true, use RNN for policy and value function.')
 flags.DEFINE_boolean('use_rnd', False,
                      'If true, use RND for reward shaping.')
+flags.DEFINE_integer('norm_init_episodes', 5,
+                    'The number of episodes to initialize the normalizers.')
 FLAGS = flags.FLAGS
 
 @gin.configurable
 def train_eval(
     root_dir,
     env_name='PongDeterministic-v0',
-    env_load_fn=suite_gym.load,
+    env_load_fn=suite_atari.load,
+    gym_env_wrappers=DEFAULT_ATARI_GYM_WRAPPERS_WITH_STACKING,
     random_seed=0,
     # TODO(b/127576522): rename to policy_fc_layers.
+    actor_conv_layers=[(32, 8, 4), (64, 4, 2), (64, 3, 1)],
     actor_fc_layers=(512, 448),
+    value_conv_layers=[(32, 8, 4), (64, 4, 2), (64, 3, 1)],
     value_fc_layers=(512, 448),
     use_rnns=False,
     use_rnd=False,
+    rnd_conv_layers=[(32, 8, 4), (64, 4, 2), (64, 3, 1)],
+    rnd_layers=(200, 100),
     # Params for collect
     num_environment_steps=2000000000,
     collect_episodes_per_iteration=16,
@@ -121,9 +125,9 @@ def train_eval(
     summary_interval=50,
     summaries_flush_secs=1,
     use_tf_functions=True,
-    debug_summaries=True,
+    debug_summaries=False,
     summarize_grads_and_vars=False):
-  """A simple train and eval for RNDPPO."""
+  """A simple train and eval for PPO."""
   if root_dir is None:
     raise AttributeError('train_eval requires a root_dir.')
 
@@ -146,11 +150,10 @@ def train_eval(
   with tf.compat.v2.summary.record_if(
       lambda: tf.math.equal(global_step % summary_interval, 0)):
     tf.compat.v1.set_random_seed(random_seed)
-    WRAPPERS = DEFAULT_ATARI_GYM_WRAPPERS_WITH_STACKING
-    eval_tf_env = tf_py_environment.TFPyEnvironment(suite_atari.load(env_name, gym_env_wrappers=WRAPPERS))
+    eval_tf_env = tf_py_environment.TFPyEnvironment(env_load_fn(env_name, gym_env_wrappers=gym_env_wrappers))
     tf_env = tf_py_environment.TFPyEnvironment(
         parallel_py_environment.ParallelPyEnvironment(
-            [lambda: suite_atari.load(env_name, gym_env_wrappers=WRAPPERS)] * num_parallel_environments))
+            [lambda: env_load_fn(env_name, gym_env_wrappers=gym_env_wrappers)] * num_parallel_environments))
     optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate)
 
     if use_rnns:
@@ -167,35 +170,43 @@ def train_eval(
       actor_net = actor_distribution_network.ActorDistributionNetwork(
           tf_env.observation_spec(),
           tf_env.action_spec(),
-          conv_layer_params=[(32, 8, 4), (64, 4, 2), (64, 3, 1)],
+          conv_layer_params=actor_conv_layers,
           fc_layer_params=actor_fc_layers)
       value_net = value_network.ValueNetwork(
           tf_env.observation_spec(),
-          conv_layer_params=[(32, 8, 4), (64, 4, 2), (64, 3, 1)],
+          conv_layer_params=value_conv_layers,
           fc_layer_params=value_fc_layers)
 
-    rnd_net = encoding_network.EncodingNetwork(
-        tf_env.observation_spec(),
-        conv_layer_params=[(32, 8, 4), (64, 4, 2), (64, 3, 1)],
-        fc_layer_params=(512,),
-        name='PredictorRNDNetwork')
+    if use_rnd:
+      rnd_net = encoding_network.EncodingNetwork(
+          tf_env.observation_spec(),
+          conv_layer_params=rnd_conv_layers,
+          fc_layer_params=rnd_layers,
+          name='PredictorRNDNetwork')
 
-    # TODO(seungjaeryanlee): Better way of passing target network? OpenAI's implementation is similar though.
-    target_rnd_net = encoding_network.EncodingNetwork(
-        tf_env.observation_spec(),
-        conv_layer_params=[(32, 8, 4), (64, 4, 2), (64, 3, 1)],
-        fc_layer_params=(512,),
-        name='TargetRNDNetwork')
+      # TODO(seungjaeryanlee): Better way of passing target network? OpenAI's implementation is similar though.
+      target_rnd_net = encoding_network.EncodingNetwork(
+          tf_env.observation_spec(),
+          fc_layer_params=rnd_layers,
+          name='TargetRNDNetwork')
+
+      rnd_optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate)
+      rnd_loss_fn = ppo_agent.mean_squared_loss
+    else:
+      rnd_net = None
+      target_rnd_net = None
+      rnd_optimizer = None
+      rnd_loss_fn = None
 
     tf_agent = ppo_agent.PPOAgent(
         tf_env.time_step_spec(),
         tf_env.action_spec(),
+        optimizer,
         use_rnd=use_rnd,
         rnd_network=rnd_net,
         target_rnd_network=target_rnd_net,
-        rnd_optimizer=tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate),
-        rnd_loss_fn=ppo_agent.mean_squared_loss,
-        optimizer=optimizer,
+        rnd_optimizer=rnd_optimizer,
+        rnd_loss_fn=rnd_loss_fn,
         actor_net=actor_net,
         value_net=value_net,
         num_epochs=num_epochs,
@@ -211,8 +222,10 @@ def train_eval(
     ]
 
     train_metrics = step_metrics + [
-        tf_metrics.AverageReturnMetric(),
-        tf_metrics.AverageEpisodeLengthMetric(),
+        tf_metrics.AverageReturnMetric(
+            batch_size=num_parallel_environments),
+        tf_metrics.AverageEpisodeLengthMetric(
+            batch_size=num_parallel_environments),
     ]
 
     eval_policy = tf_agent.policy
@@ -229,41 +242,26 @@ def train_eval(
         observers=[replay_buffer.add_batch] + train_metrics,
         num_episodes=collect_episodes_per_iteration)
 
-    # Initialize RND normalization parameters
-    # TODO(seungjaeryanlee): Change parameters
-    for _ in range(5):
-      rnd_init_replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
+    # Initialize normalization parameters with random trajectories
+    for _ in range(FLAGS.norm_init_episodes):
+      init_replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
           tf_agent.collect_data_spec,
           batch_size=num_parallel_environments,
           max_length=replay_buffer_capacity)
-      rnd_init_collect_driver = dynamic_episode_driver.DynamicEpisodeDriver(
+      init_collect_driver = dynamic_episode_driver.DynamicEpisodeDriver(
           tf_env,
           collect_policy,
-          observers=[rnd_init_replay_buffer.add_batch],
+          observers=[init_replay_buffer.add_batch],
           num_episodes=collect_episodes_per_iteration)
 
-      rnd_init_collect_driver.run()
-      trajectories = rnd_init_replay_buffer.gather_all()
+      init_collect_driver.run()
+      trajectories = init_replay_buffer.gather_all()
       tf_agent.init_normalizer(experience=trajectories)
-      rnd_init_replay_buffer.clear()
+      init_replay_buffer.clear()
 
-    # Dataset generates trajectories with shape [Bx2x...]
-    dataset = replay_buffer.as_dataset(
-        num_parallel_calls=3,
-        sample_batch_size=num_parallel_environments,
-        num_steps=128 + 1).prefetch(3)
-    iterator = iter(dataset)
-
-    # TODO(seungjaeryanlee): assertion failed:
-    # [TFUniformReplayBuffer is empty. Make sure to add items before sampling the buffer.]
     def train_step():
-      trajectory = next(iterator)[0]
-      loss_info = tf_agent.train(trajectory)
-      # TODO(seungjaeryanlee): Can't use for loop?
-      # AttributeError: Tensor.op is meaningless when eager execution is enabled.
-      # for trajectory, _ in dataset:
-      #   loss_info = tf_agent.train(trajectory)
-      return loss_info
+      trajectories = replay_buffer.gather_all()
+      return tf_agent.train(experience=trajectories)
 
     if use_tf_functions:
       # TODO(b/123828980): Enable once the cause for slowdown was identified.
