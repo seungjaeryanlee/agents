@@ -70,6 +70,7 @@ def train_eval(
     actor_fc_layers=(200, 100),
     value_fc_layers=(200, 100),
     use_rnns=False,
+    use_rnd=False,
     # Params for collect
     num_environment_steps=10000000,
     collect_episodes_per_iteration=30,
@@ -135,10 +136,33 @@ def train_eval(
       value_net = value_network.ValueNetwork(
           tf_env.observation_spec(), fc_layer_params=value_fc_layers)
 
+    if use_rnd:
+      rnd_net = encoding_network.EncodingNetwork(
+        tf_env.observation_spec(),
+        fc_layer_params=actor_fc_layers,
+        name='PredictorRNDNetwork')
+      # TODO(seungjaeryanlee): Better way of passing target network? OpenAI's implementation is similar though.
+      target_rnd_net = encoding_network.EncodingNetwork(
+          tf_env.observation_spec(),
+          fc_layer_params=actor_fc_layers,
+          name='TargetRNDNetwork')
+      rnd_optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate)
+      rnd_loss_fn = ppo_agent.mean_squared_loss
+    else:
+      rnd_net = None
+      target_rnd_net = None
+      rnd_optimizer = None
+      rnd_loss_fn = None
+
     tf_agent = ppo_agent.PPOAgent(
         tf_env.time_step_spec(),
         tf_env.action_spec(),
         optimizer,
+        use_rnd=use_rnd,
+        rnd_network=rnd_net,
+        target_rnd_network=target_rnd_net,
+        rnd_optimizer=rnd_optimizer,
+        rnd_loss_fn=rnd_loss_fn,
         actor_net=actor_net,
         value_net=value_net,
         num_epochs=num_epochs,
@@ -276,6 +300,8 @@ if __name__ == '__main__':
                       'The number of episodes to run eval on.')
   flags.DEFINE_boolean('use_rnns', False,
                       'If true, use RNN for policy and value function.')
+  flags.DEFINE_boolean('use_rnd', False,
+                      'If true, use RND for reward shaping.')
   flags.DEFINE_multi_string('gin_file', None, 'Paths to the gin-config files.')
   flags.DEFINE_multi_string('gin_param', None, 'Gin binding parameters.')
   FLAGS = flags.FLAGS
