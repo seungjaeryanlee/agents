@@ -67,6 +67,7 @@ from tf_agents.metrics import py_metric
 from tf_agents.metrics import py_metrics
 from tf_agents.networks import q_network
 from tf_agents.policies import epsilon_greedy_policy
+from tf_agents.policies import policy_saver
 from tf_agents.policies import py_tf_policy
 from tf_agents.policies import random_py_policy
 from tf_agents.replay_buffers import py_hashed_replay_buffer
@@ -79,7 +80,10 @@ from tf_agents.utils import timer
 
 flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
                     'Root directory for writing logs/summaries/checkpoints.')
+flags.DEFINE_string('environment_name', None,
+                    'Full name of Atari game to run, ex. PongNoFrameskip-v4.')
 flags.DEFINE_string('game_name', 'Pong', 'Name of Atari game to run.')
+
 flags.DEFINE_integer('num_iterations', None,
                      'Number of train/eval iterations to run.')
 flags.DEFINE_integer('initial_collect_steps', None,
@@ -291,7 +295,7 @@ class TrainEval(object):
             target_update_tau=target_update_tau,
             target_update_period=(
                 target_update_period / ATARI_FRAME_SKIP / self._update_period),
-            td_errors_loss_fn=dqn_agent.element_wise_huber_loss,
+            td_errors_loss_fn=common.element_wise_huber_loss,
             gamma=gamma,
             reward_scale_factor=reward_scale_factor,
             gradient_clipping=gradient_clipping,
@@ -371,6 +375,9 @@ class TrainEval(object):
                     train_step=self._global_step,
                     step_metrics=(self._iteration_metric,))
 
+        self._train_dir = train_dir
+        self._policy_exporter = policy_saver.PolicySaver(
+            agent.policy, train_step=self._global_step)
         self._train_checkpointer = common.Checkpointer(
             ckpt_dir=train_dir,
             agent=agent,
@@ -440,6 +447,12 @@ class TrainEval(object):
         self._train_checkpointer.save(global_step=global_step_val)
         self._policy_checkpointer.save(global_step=global_step_val)
         self._rb_checkpointer.save(global_step=global_step_val)
+
+        export_dir = os.path.join(self._train_dir, 'saved_policy',
+                                  'step_' + ('%d' % global_step_val).zfill(8))
+        self._policy_exporter.save(export_dir)
+        common.save_spec(self._collect_policy.trajectory_spec,
+                         os.path.join(export_dir, 'trajectory_spec'))
 
   def _initialize_graph(self, sess):
     """Initialize the graph for sess."""
@@ -627,8 +640,10 @@ def get_run_args():
 def main(_):
   logging.set_verbosity(logging.INFO)
   tf.enable_resource_variables()
-  TrainEval(FLAGS.root_dir, suite_atari.game(name=FLAGS.game_name),
-            **get_run_args()).run()
+  environment_name = FLAGS.environment_name
+  if environment_name is None:
+    environment_name = suite_atari.game(name=FLAGS.game_name)
+  TrainEval(FLAGS.root_dir, environment_name, **get_run_args()).run()
 
 
 if __name__ == '__main__':

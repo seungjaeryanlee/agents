@@ -171,6 +171,11 @@ class EncodingNetwork(network.Network):
           'input_tensor_spec is provided.')
 
     if preprocessing_combiner is not None:
+      # pylint:disable=unidiomatic-typecheck
+      if (type(preprocessing_combiner) ==
+          tf.compat.v1.keras.layers.DenseFeatures):
+        raise ValueError('DenseFeatures V1 is not supported. '
+                         'Use tf.compat.v2.keras.layers.DenseFeatures instead.')
       preprocessing_combiner = _copy_layer(preprocessing_combiner)
 
     if not kernel_initializer:
@@ -219,7 +224,11 @@ class EncodingNetwork(network.Network):
     super(EncodingNetwork, self).__init__(
         input_tensor_spec=input_tensor_spec, state_spec=(), name=name)
 
-    self._preprocessing_layers = preprocessing_layers
+    # Pull out the nest structure of the preprocessing layers. This avoids
+    # saving the original kwarg layers as a class attribute which Keras would
+    # then track.
+    self._preprocessing_nest = tf.nest.map_structure(lambda l: None,
+                                                     preprocessing_layers)
     self._flat_preprocessing_layers = flat_preprocessing_layers
     self._preprocessing_combiner = preprocessing_combiner
     self._postprocessing_layers = layers
@@ -234,13 +243,13 @@ class EncodingNetwork(network.Network):
       batch_squash = utils.BatchSquash(outer_rank)
       observation = tf.nest.map_structure(batch_squash.flatten, observation)
 
-    if self._preprocessing_layers is None:
+    if self._flat_preprocessing_layers is None:
       processed = observation
     else:
       processed = []
       for obs, layer in zip(
           nest.flatten_up_to(
-              self._preprocessing_layers, observation, check_types=False),
+              self._preprocessing_nest, observation, check_types=False),
           self._flat_preprocessing_layers):
         processed.append(layer(obs))
       if len(processed) == 1 and self._preprocessing_combiner is None:

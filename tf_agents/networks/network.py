@@ -28,9 +28,12 @@ from tensorflow.keras import layers  # pylint: disable=unused-import
 from tf_agents.specs import tensor_spec
 from tf_agents.trajectories import time_step
 
+# pylint:disable=g-direct-tensorflow-import
 from tensorflow.python.keras.engine import network as keras_network  # TF internal
+from tensorflow.python.training.tracking import base  # TF internal
 from tensorflow.python.util import tf_decorator  # TF internal
 from tensorflow.python.util import tf_inspect  # TF internal
+# pylint:enable=g-direct-tensorflow-import
 
 
 class _NetworkMeta(abc.ABCMeta):
@@ -74,7 +77,8 @@ class _NetworkMeta(abc.ABCMeta):
           "%s.__init__ function accepts *args.  This is not allowed." %
           classname)
 
-    def capture_init(self, *args, **kwargs):
+    def _capture_init(self, *args, **kwargs):
+      """Captures init args and kwargs and stores them into `_saved_kwargs`."""
       if len(args) > len(arg_spec.args) + 1:
         # Error case: more inputs than args.  Call init so that the appropriate
         # error can be raised to the user.
@@ -83,9 +87,12 @@ class _NetworkMeta(abc.ABCMeta):
         # Add +1 to skip `self` in arg_spec.args.
         kwargs[arg_spec.args[1 + i]] = arg
       init(self, **kwargs)
-      setattr(self, "_saved_kwargs", kwargs)
+      # Avoid auto tracking which prevents keras from tracking layers that are
+      # passed as kwargs to the Network.
+      with base.no_automatic_dependency_tracking_scope(self):
+        setattr(self, "_saved_kwargs", kwargs)
 
-    attrs["__init__"] = tf_decorator.make_decorator(init, capture_init)
+    attrs["__init__"] = tf_decorator.make_decorator(init, _capture_init)
     return abc.ABCMeta.__new__(mcs, classname, baseclasses, attrs)
 
 
@@ -132,6 +139,25 @@ class Network(keras_network.Network):
           ValueError, "Failed to call build on the network when accessing "
           "variables. Message: {!r}.".format(e), traceback)
     return self.weights
+
+  @property
+  def trainable_variables(self):
+    """Return the trainable variables for all the network layers.
+
+    If the network hasn't been built, builds it on random input (generated
+    using self._input_tensor_spec) to build all the layers and their variables.
+
+    Raises:
+      ValueError:  If the network fails to build.
+    """
+    try:
+      self._build()
+    except ValueError as e:
+      traceback = sys.exc_info()[2]
+      six.reraise(
+          ValueError, "Failed to call build on the network when accessing "
+          "trainable_variables. Message: {!r}.".format(e), traceback)
+    return self.trainable_weights
 
   def copy(self, **kwargs):
     """Create a shallow copy of this network.

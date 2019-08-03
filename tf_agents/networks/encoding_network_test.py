@@ -22,6 +22,7 @@ from __future__ import print_function
 import tensorflow as tf
 
 from tf_agents.networks import encoding_network
+from tf_agents.networks import sequential_layer
 from tf_agents.specs import tensor_spec
 from tf_agents.utils import test_utils
 
@@ -136,8 +137,13 @@ class EncodingNetworkTest(test_utils.TestCase):
     network = encoding_network.EncodingNetwork(
         input_spec,
         preprocessing_layers={
-            'a': tf.keras.layers.Flatten(),
-            'b': tf.keras.layers.Flatten()
+            'a':
+                sequential_layer.SequentialLayer([
+                    tf.keras.layers.Dense(4, activation='tanh'),
+                    tf.keras.layers.Flatten()
+                ]),
+            'b':
+                tf.keras.layers.Flatten()
         },
         fc_layer_params=(),
         preprocessing_combiner=tf.keras.layers.Concatenate(axis=-1),
@@ -147,7 +153,40 @@ class EncodingNetworkTest(test_utils.TestCase):
     sample_input = tensor_spec.sample_spec_nest(input_spec)
     output, _ = network(sample_input)
     # 6144 is the shape from a concat of flat (32, 32, 3) x2.
-    self.assertEqual((6144,), output.shape)
+    self.assertEqual((7168,), output.shape)
+
+  def test_layers_buildable(self):
+    input_spec = {
+        'a': tensor_spec.TensorSpec((32, 32, 3), tf.float32),
+        'b': tensor_spec.TensorSpec((32, 32, 3), tf.float32)
+    }
+    network = encoding_network.EncodingNetwork(
+        input_spec,
+        preprocessing_layers={
+            'a':
+                sequential_layer.SequentialLayer([
+                    tf.keras.layers.Dense(4, activation='tanh'),
+                    tf.keras.layers.Flatten()
+                ]),
+            'b':
+                tf.keras.layers.Flatten()
+        },
+        fc_layer_params=(),
+        preprocessing_combiner=tf.keras.layers.Concatenate(axis=-1),
+        activation_fn=tf.keras.activations.tanh,
+    )
+
+    self.assertNotEmpty(network.variables)
+
+  def testDenseFeaturesV1RaisesError(self):
+    key = 'feature_key'
+    state_dims = 5
+    column = tf.feature_column.numeric_column(key, [state_dims])
+    input_spec = {key: tensor_spec.TensorSpec([state_dims], tf.int32)}
+    dense_features = tf.compat.v1.keras.layers.DenseFeatures([column])
+    with self.assertRaisesRegexp(ValueError, 'DenseFeatures'):
+      encoding_network.EncodingNetwork(
+          input_spec, preprocessing_combiner=dense_features)
 
   def testNumericFeatureColumnInput(self):
     key = 'feature_key'
@@ -158,9 +197,9 @@ class EncodingNetworkTest(test_utils.TestCase):
     state = {key: tf.ones(input_shape, tf.int32)}
     input_spec = {key: tensor_spec.TensorSpec([state_dims], tf.int32)}
 
+    dense_features = tf.compat.v2.keras.layers.DenseFeatures([column])
     network = encoding_network.EncodingNetwork(
-        input_spec,
-        preprocessing_combiner=tf.keras.layers.DenseFeatures([column]))
+        input_spec, preprocessing_combiner=dense_features)
 
     output, _ = network(state)
     self.assertEqual(input_shape, output.shape)
@@ -176,9 +215,9 @@ class EncodingNetworkTest(test_utils.TestCase):
     state = {key: tf.expand_dims(state_input, -1)}
     input_spec = {key: tensor_spec.TensorSpec([1], tf.int32)}
 
+    dense_features = tf.compat.v2.keras.layers.DenseFeatures([column])
     network = encoding_network.EncodingNetwork(
-        input_spec,
-        preprocessing_combiner=tf.keras.layers.DenseFeatures([column]))
+        input_spec, preprocessing_combiner=dense_features)
 
     output, _ = network(state)
     expected_shape = (len(state_input), len(vocab_list))
@@ -224,9 +263,9 @@ class EncodingNetworkTest(test_utils.TestCase):
     specs[numeric_key] = tensor_spec.TensorSpec([state_dims], tf.int32)
     expected_dim += state_dims
 
+    dense_features = tf.compat.v2.keras.layers.DenseFeatures(columns.values())
     network = encoding_network.EncodingNetwork(
-        specs,
-        preprocessing_combiner=tf.keras.layers.DenseFeatures(columns.values()))
+        specs, preprocessing_combiner=dense_features)
 
     output, _ = network(tensors)
     expected_shape = (batch_size, expected_dim)
