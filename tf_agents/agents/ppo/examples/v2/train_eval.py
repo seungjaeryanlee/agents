@@ -13,19 +13,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-r"""Train and Eval PPO.
+r"""Train and Eval PPO on OpenAI Gym environments.
 
-To run LunarLander with PPO:
+To run on LunarLander-v2:
 
 ```bash
 tensorboard --logdir $HOME/tmp/ppo/gym/LunarLander-v2/ --port 2223 &
 
 python tf_agents/agents/ppo/examples/v2/train_eval.py \
   --root_dir=$HOME/tmp/ppo/gym/LunarLander-v2/ \
-  --logtostderr \
-  --gin_file=tf_agents/environments/configs/rnd.gin
+  --logtostderr
 ```
 
+To run with RND on LunarLander-v2:
+
+```bash
+tensorboard --logdir $HOME/tmp/rndppo/gym/LunarLander-v2/ --port 2223 &
+
+python tf_agents/agents/ppo/examples/v2/train_eval.py \
+  --root_dir=$HOME/tmp/rndppo/gym/LunarLander-v2/ \
+  --logtostderr --use_rnd
+```
 """
 
 from __future__ import absolute_import
@@ -46,18 +54,16 @@ from tf_agents.agents.ppo import ppo_agent
 from tf_agents.drivers import dynamic_episode_driver
 from tf_agents.environments import parallel_py_environment
 from tf_agents.environments import suite_gym
-from tf_agents.environments import suite_atari
 from tf_agents.environments import tf_py_environment
 from tf_agents.eval import metric_utils
 from tf_agents.metrics import tf_metrics
 from tf_agents.networks import actor_distribution_network
 from tf_agents.networks import actor_distribution_rnn_network
+from tf_agents.networks import encoding_network
 from tf_agents.networks import value_network
 from tf_agents.networks import value_rnn_network
 from tf_agents.replay_buffers import tf_uniform_replay_buffer
 from tf_agents.utils import common
-
-
 
 
 @gin.configurable
@@ -138,14 +144,16 @@ def train_eval(
 
     if use_rnd:
       rnd_net = encoding_network.EncodingNetwork(
-        tf_env.observation_spec(),
-        fc_layer_params=actor_fc_layers,
-        name='PredictorRNDNetwork')
+          tf_env.observation_spec(),
+          fc_layer_params=actor_fc_layers,
+          name='PredictorRNDNetwork')
+
       # TODO(seungjaeryanlee): Better way of passing target network? OpenAI's implementation is similar though.
       target_rnd_net = encoding_network.EncodingNetwork(
           tf_env.observation_spec(),
           fc_layer_params=actor_fc_layers,
           name='TargetRNDNetwork')
+
       rnd_optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate)
       rnd_loss_fn = ppo_agent.mean_squared_loss
     else:
@@ -197,6 +205,23 @@ def train_eval(
         collect_policy,
         observers=[replay_buffer.add_batch] + train_metrics,
         num_episodes=collect_episodes_per_iteration)
+
+    # Initialize normalization parameters with random trajectories
+    for _ in range(FLAGS.norm_init_episodes):
+      init_replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
+          tf_agent.collect_data_spec,
+          batch_size=num_parallel_environments,
+          max_length=replay_buffer_capacity)
+      init_collect_driver = dynamic_episode_driver.DynamicEpisodeDriver(
+          tf_env,
+          collect_policy,
+          observers=[init_replay_buffer.add_batch],
+          num_episodes=collect_episodes_per_iteration)
+
+      init_collect_driver.run()
+      trajectories = init_replay_buffer.gather_all()
+      tf_agent.init_normalizer(experience=trajectories)
+      init_replay_buffer.clear()
 
     def train_step():
       trajectories = replay_buffer.gather_all()
@@ -268,11 +293,12 @@ def train_eval(
 def main(_):
   logging.set_verbosity(logging.INFO)
   tf.compat.v1.enable_v2_behavior()
-  gin.parse_config_files_and_bindings(FLAGS.gin_file, FLAGS.gin_param)
   train_eval(
       FLAGS.root_dir,
       env_name=FLAGS.env_name,
+      random_seed=FLAGS.random_seed,
       use_rnns=FLAGS.use_rnns,
+      use_rnd=FLAGS.use_rnd,
       num_environment_steps=FLAGS.num_environment_steps,
       collect_episodes_per_iteration=FLAGS.collect_episodes_per_iteration,
       num_parallel_environments=FLAGS.num_parallel_environments,
@@ -285,6 +311,7 @@ if __name__ == '__main__':
   flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
                       'Root directory for writing logs/summaries/checkpoints.')
   flags.DEFINE_string('env_name', 'LunarLander-v2', 'Name of an environment')
+  flags.DEFINE_integer('random_seed', 0, 'Random seed')
   flags.DEFINE_integer('replay_buffer_capacity', 1001,
                       'Replay buffer capacity per env.')
   flags.DEFINE_integer('num_parallel_environments', 30,
@@ -304,9 +331,8 @@ if __name__ == '__main__':
                       'If true, use RNN for policy and value function.')
   flags.DEFINE_boolean('use_rnd', False,
                       'If true, use RND for reward shaping.')
-  flags.DEFINE_multi_string('gin_file', None, 'Paths to the gin-config files.')
-  flags.DEFINE_multi_string('gin_param', None, 'Gin binding parameters.')
+  flags.DEFINE_integer('norm_init_episodes', 5,
+                      'The number of episodes to initialize the normalizers.')
   FLAGS = flags.FLAGS
-
   flags.mark_flag_as_required('root_dir')
   app.run(main)
