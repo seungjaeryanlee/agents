@@ -206,23 +206,22 @@ def train_eval(
         observers=[replay_buffer.add_batch] + train_metrics,
         num_episodes=collect_episodes_per_iteration)
 
-    # Initialize RND normalization parameters
-    # TODO(seungjaeryanlee): Change parameters
-    for _ in range(0):
-      rnd_init_replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
+    # Initialize normalization parameters with random trajectories
+    for _ in range(FLAGS.norm_init_episodes):
+      init_replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
           tf_agent.collect_data_spec,
           batch_size=num_parallel_environments,
           max_length=replay_buffer_capacity)
-      rnd_init_collect_driver = dynamic_episode_driver.DynamicEpisodeDriver(
+      init_collect_driver = dynamic_episode_driver.DynamicEpisodeDriver(
           tf_env,
           collect_policy,
-          observers=[rnd_init_replay_buffer.add_batch],
+          observers=[init_replay_buffer.add_batch],
           num_episodes=collect_episodes_per_iteration)
 
-      rnd_init_collect_driver.run()
-      trajectories = rnd_init_replay_buffer.gather_all()
+      init_collect_driver.run()
+      trajectories = init_replay_buffer.gather_all()
       tf_agent.init_normalizer(experience=trajectories)
-      rnd_init_replay_buffer.clear()
+      init_replay_buffer.clear()
 
     def train_step():
       trajectories = replay_buffer.gather_all()
@@ -332,6 +331,8 @@ if __name__ == '__main__':
                       'If true, use RNN for policy and value function.')
   flags.DEFINE_boolean('use_rnd', False,
                       'If true, use RND for reward shaping.')
+  flags.DEFINE_integer('norm_init_episodes', 5,
+                      'The number of episodes to initialize the normalizers.')
   FLAGS = flags.FLAGS
   flags.mark_flag_as_required('root_dir')
   app.run(main)
