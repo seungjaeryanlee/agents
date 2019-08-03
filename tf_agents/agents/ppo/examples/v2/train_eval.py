@@ -99,6 +99,7 @@ def train_eval(
     num_parallel_environments=30,
     replay_buffer_capacity=1001,  # Per-environment
     # Params for train
+    norm_init_episodes=0,
     num_epochs=25,
     learning_rate=1e-4,
     # Params for eval
@@ -227,7 +228,7 @@ def train_eval(
         num_episodes=collect_episodes_per_iteration)
 
     # Initialize normalization parameters with random trajectories
-    for _ in range(FLAGS.norm_init_episodes):
+    for _ in range(norm_init_episodes):
       init_replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
           tf_agent.collect_data_spec,
           batch_size=num_parallel_environments,
@@ -324,6 +325,7 @@ def main(_):
       collect_episodes_per_iteration=FLAGS.collect_episodes_per_iteration,
       num_parallel_environments=FLAGS.num_parallel_environments,
       replay_buffer_capacity=FLAGS.replay_buffer_capacity,
+      norm_init_episodes=FLAGS.norm_init_episodes,
       num_epochs=FLAGS.num_epochs,
       num_eval_episodes=FLAGS.num_eval_episodes)
 
