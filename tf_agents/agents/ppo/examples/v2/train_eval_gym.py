@@ -66,32 +66,6 @@ from tf_agents.replay_buffers import tf_uniform_replay_buffer
 from tf_agents.utils import common
 
 
-flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
-                    'Root directory for writing logs/summaries/checkpoints.')
-flags.DEFINE_string('env_name', 'LunarLander-v2', 'Name of an environment')
-flags.DEFINE_integer('random_seed', 0, 'Random seed')
-flags.DEFINE_integer('replay_buffer_capacity', 1001,
-                     'Replay buffer capacity per env.')
-flags.DEFINE_integer('num_parallel_environments', 30,
-                     'Number of environments to run in parallel')
-flags.DEFINE_integer('num_environment_steps', 10000000,
-                     'Number of environment steps to run before finishing.')
-flags.DEFINE_integer('num_epochs', 25,
-                     'Number of epochs for computing policy updates.')
-flags.DEFINE_integer(
-    'collect_episodes_per_iteration', 30,
-    'The number of episodes to take in the environment before '
-    'each update. This is the total across all parallel '
-    'environments.')
-flags.DEFINE_integer('num_eval_episodes', 30,
-                     'The number of episodes to run eval on.')
-flags.DEFINE_boolean('use_rnns', False,
-                     'If true, use RNN for policy and value function.')
-flags.DEFINE_boolean('use_rnd', False,
-                     'If true, use RND for reward shaping.')
-FLAGS = flags.FLAGS
-
-
 @gin.configurable
 def train_eval(
     root_dir,
@@ -353,5 +327,29 @@ def main(_):
 
 
 if __name__ == '__main__':
+  flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
+                      'Root directory for writing logs/summaries/checkpoints.')
+  flags.DEFINE_string('env_name', 'LunarLander-v2', 'Name of an environment')
+  flags.DEFINE_integer('random_seed', 0, 'Random seed')
+  flags.DEFINE_integer('replay_buffer_capacity', 1001,
+                      'Replay buffer capacity per env.')
+  flags.DEFINE_integer('num_parallel_environments', 30,
+                      'Number of environments to run in parallel')
+  flags.DEFINE_integer('num_environment_steps', 10000000,
+                      'Number of environment steps to run before finishing.')
+  flags.DEFINE_integer('num_epochs', 25,
+                      'Number of epochs for computing policy updates.')
+  flags.DEFINE_integer(
+      'collect_episodes_per_iteration', 30,
+      'The number of episodes to take in the environment before '
+      'each update. This is the total across all parallel '
+      'environments.')
+  flags.DEFINE_integer('num_eval_episodes', 30,
+                      'The number of episodes to run eval on.')
+  flags.DEFINE_boolean('use_rnns', False,
+                      'If true, use RNN for policy and value function.')
+  flags.DEFINE_boolean('use_rnd', False,
+                      'If true, use RND for reward shaping.')
+  FLAGS = flags.FLAGS
   flags.mark_flag_as_required('root_dir')
   app.run(main)
