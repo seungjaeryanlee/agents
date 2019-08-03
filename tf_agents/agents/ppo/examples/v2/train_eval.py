@@ -34,6 +34,17 @@ python tf_agents/agents/ppo/examples/v2/train_eval.py \
   --root_dir=$HOME/tmp/rndppo/gym/LunarLander-v2/ \
   --logtostderr --use_rnd
 ```
+
+To run with RND on MountainCar-v2:
+
+```bash
+tensorboard --logdir $HOME/tmp/rndppo/gym/MountainCar-v2/ --port 2223 &
+
+python tf_agents/agents/ppo/examples/v2/train_eval.py \
+  --root_dir=$HOME/tmp/rndppo/gym/MountainCar-v2/ \
+  --gin_file=tf_agents/environments/configs/rnd.gin \
+  --logtostderr
+```
 """
 
 from __future__ import absolute_import
@@ -293,6 +304,7 @@ def train_eval(
 def main(_):
   logging.set_verbosity(logging.INFO)
   tf.compat.v1.enable_v2_behavior()
+  gin.parse_config_files_and_bindings(FLAGS.gin_file, FLAGS.gin_param)
   train_eval(
       FLAGS.root_dir,
       env_name=FLAGS.env_name,
@@ -333,6 +345,8 @@ if __name__ == '__main__':
                       'If true, use RND for reward shaping.')
   flags.DEFINE_integer('norm_init_episodes', 5,
                       'The number of episodes to initialize the normalizers.')
+  flags.DEFINE_multi_string('gin_file', None, 'Paths to the gin-config files.')
+  flags.DEFINE_multi_string('gin_param', None, 'Gin binding parameters.')
   FLAGS = flags.FLAGS
   flags.mark_flag_as_required('root_dir')
   app.run(main)
