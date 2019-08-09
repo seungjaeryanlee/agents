@@ -208,7 +208,7 @@ class NValueHeadNetwork(network.Network):
         dtype=dtype)
 
     self._postprocessing_layers = tf.keras.layers.Dense(
-        self.head_count,
+        head_count,
         activation=None,
         kernel_initializer=tf.compat.v1.initializers.random_uniform(
             minval=-0.03, maxval=0.03))
