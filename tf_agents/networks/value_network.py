@@ -125,3 +125,96 @@ class ValueNetwork(network.Network):
         observation, step_type=step_type, network_state=network_state)
     value = self._postprocessing_layers(state)
     return tf.squeeze(value, -1), network_state
+
+
+# TODO(seungjaeryanlee): Update documentations
+@gin.configurable
+class NValueHeadNetwork(network.Network):
+  """Feed Forward value network with N heads. Reduces to N value output per batch item."""
+
+  def __init__(self,
+               input_tensor_spec,
+               head_count,
+               preprocessing_layers=None,
+               preprocessing_combiner=None,
+               conv_layer_params=None,
+               fc_layer_params=(75, 40),
+               dropout_layer_params=None,
+               activation_fn=tf.keras.activations.relu,
+               kernel_initializer=None,
+               batch_squash=True,
+               dtype=tf.float32,
+               name='NValueHeadNetwork'):
+    """Creates an instance of `NValueHeadNetwork`.
+
+    Network supports calls with shape outer_rank + observation_spec.shape. Note
+    outer_rank must be at least 1.
+
+    Args:
+      input_tensor_spec: A `tensor_spec.TensorSpec` or a tuple of specs
+        representing the input observations.
+      preprocessing_layers: (Optional.) A nest of `tf.keras.layers.Layer`
+        representing preprocessing for the different observations.
+        All of these layers must not be already built. For more details see
+        the documentation of `networks.EncodingNetwork`.
+      preprocessing_combiner: (Optional.) A keras layer that takes a flat list
+        of tensors and combines them. Good options include
+        `tf.keras.layers.Add` and `tf.keras.layers.Concatenate(axis=-1)`.
+        This layer must not be already built. For more details see
+        the documentation of `networks.EncodingNetwork`.
+      conv_layer_params: Optional list of convolution layers parameters, where
+        each item is a length-three tuple indicating (filters, kernel_size,
+        stride).
+      fc_layer_params: Optional list of fully_connected parameters, where each
+        item is the number of units in the layer.
+      dropout_layer_params: Optional list of dropout layer parameters, each item
+        is the fraction of input units to drop or a dictionary of parameters
+        according to the keras.Dropout documentation. The additional parameter
+        `permanent', if set to True, allows to apply dropout at inference for
+        approximated Bayesian inference. The dropout layers are interleaved with
+        the fully connected layers; there is a dropout layer after each fully
+        connected layer, except if the entry in the list is None. This list must
+        have the same length of fc_layer_params, or be None.
+      activation_fn: Activation function, e.g. tf.keras.activations.relu,.
+      kernel_initializer: Initializer to use for the kernels of the conv and
+        dense layers. If none is provided a default variance_scaling_initializer
+      batch_squash: If True the outer_ranks of the observation are squashed into
+        the batch dimension. This allow encoding networks to be used with
+        observations with shape [BxTx...].
+      dtype: The dtype to use by the convolution and fully connected layers.
+      name: A string representing name of the network.
+
+    Raises:
+      ValueError: If input_tensor_spec is not an instance of network.InputSpec.
+    """
+    super(NValueHeadNetwork, self).__init__(
+        input_tensor_spec=input_tensor_spec,
+        state_spec=(),
+        name=name)
+
+    if not kernel_initializer:
+      kernel_initializer = tf.compat.v1.keras.initializers.glorot_uniform()
+
+    self._encoder = encoding_network.EncodingNetwork(
+        input_tensor_spec,
+        preprocessing_layers=preprocessing_layers,
+        preprocessing_combiner=preprocessing_combiner,
+        conv_layer_params=conv_layer_params,
+        fc_layer_params=fc_layer_params,
+        dropout_layer_params=dropout_layer_params,
+        activation_fn=activation_fn,
+        kernel_initializer=kernel_initializer,
+        batch_squash=batch_squash,
+        dtype=dtype)
+
+    self._postprocessing_layers = tf.keras.layers.Dense(
+        self.head_count,
+        activation=None,
+        kernel_initializer=tf.compat.v1.initializers.random_uniform(
+            minval=-0.03, maxval=0.03))
+
+  def call(self, observation, step_type=None, network_state=()):
+    state, network_state = self._encoder(
+        observation, step_type=step_type, network_state=network_state)
+    value = self._postprocessing_layers(state)
+    return tf.squeeze(value, -1), network_state
