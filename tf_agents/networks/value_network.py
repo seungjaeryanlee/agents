@@ -217,4 +217,4 @@ class NValueHeadNetwork(network.Network):
     state, network_state = self._encoder(
         observation, step_type=step_type, network_state=network_state)
     value = self._postprocessing_layers(state)
-    return tf.squeeze(value, -1), network_state
+    return value, network_state

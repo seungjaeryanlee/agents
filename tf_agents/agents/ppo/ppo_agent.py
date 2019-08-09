@@ -614,9 +614,12 @@ class PPOAgent(tf_agent.TFAgent):
 
     # Observation_normalizer is automatically used in collect_policy, so
     # an unnormalized experience.observation is given
-    value_preds, unused_policy_state = self._collect_policy.apply_value_network(
+    dual_value_preds, unused_policy_state = self._collect_policy.apply_value_network(
         experience.observation, experience.step_type, policy_state=policy_state)
-    value_preds = tf.stop_gradient(value_preds)
+    dual_value_preds = tf.stop_gradient(dual_value_preds)
+    value_preds = dual_value_preds[:, :, 0]
+    # TODO(seungjaeryanlee): Use
+    intrinsic_value_preds = dual_value_preds[:, :, 0]
 
     valid_mask = ppo_utils.make_timestep_mask(next_time_steps)
 
@@ -915,8 +918,11 @@ class PPOAgent(tf_agent.TFAgent):
     batch_size = nest_utils.get_outer_shape(time_steps, self._time_step_spec)[0]
     policy_state = self._collect_policy.get_initial_state(batch_size=batch_size)
 
-    value_preds, unused_policy_state = self._collect_policy.apply_value_network(
+    dual_value_preds, unused_policy_state = self._collect_policy.apply_value_network(
         normalized_observations, time_steps.step_type, policy_state=policy_state)
+    value_preds = dual_value_preds[:, :, 0]
+    # TODO(seungjaeryanlee): Use
+    intrinsic_value_preds = dual_value_preds[:, :, 1]
     value_estimation_error = tf.math.squared_difference(returns, value_preds)
     value_estimation_error *= weights
 

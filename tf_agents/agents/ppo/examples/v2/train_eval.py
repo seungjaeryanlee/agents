@@ -148,7 +148,7 @@ def train_eval(
           fc_layer_params=actor_fc_layers)
       value_net = value_network.NValueHeadNetwork(
           tf_env.observation_spec(),
-          head_count=1,
+          head_count=2,
           conv_layer_params=value_conv_layers,
           fc_layer_params=value_fc_layers)
 
