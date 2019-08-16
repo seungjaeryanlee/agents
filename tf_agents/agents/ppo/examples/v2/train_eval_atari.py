@@ -71,6 +71,7 @@ from train_eval import train_eval
 flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
                     'Root directory for writing logs/summaries/checkpoints.')
 flags.DEFINE_string('env_name', 'PongDeterministic-v0', 'Name of an environment')
+flags.DEFINE_integer('random_seed', 0, 'Random seed')
 flags.DEFINE_integer('replay_buffer_capacity', 18001,
                      'Replay buffer capacity per env.')
 flags.DEFINE_integer('num_parallel_environments', 16,
@@ -101,6 +102,7 @@ def main(_):
   train_eval(
       FLAGS.root_dir,
       env_name=FLAGS.env_name,
+      random_seed=FLAGS.random_seed,
       use_rnns=FLAGS.use_rnns,
       use_rnd=FLAGS.use_rnd,
       num_environment_steps=FLAGS.num_environment_steps,
