@@ -24,6 +24,7 @@ import tensorflow as tf
 
 from tf_agents.agents.dqn import dqn_agent
 from tf_agents.networks import network
+from tf_agents.networks import test_utils as networks_test_utils
 from tf_agents.specs import tensor_spec
 from tf_agents.trajectories import policy_step
 from tf_agents.trajectories import test_utils as trajectories_test_utils
@@ -55,17 +56,6 @@ class DummyNet(network.Network):
     for layer in self.layers:
       inputs = layer(inputs)
     return inputs, network_state
-
-
-class KerasLayersNet(network.Network):
-
-  def __init__(self, observation_spec, action_spec, layer, name=None):
-    super(KerasLayersNet, self).__init__(observation_spec, state_spec=(),
-                                         name=name)
-    self._layer = layer
-
-  def call(self, inputs, unused_step_type=None, network_state=()):
-    return self._layer(inputs), network_state
 
 
 class ComputeTDTargetsTest(test_utils.TestCase):
@@ -102,8 +92,9 @@ class DqnAgentTest(test_utils.TestCase):
 
   def testCreateAgentWithPrebuiltPreprocessingLayers(self, agent_class):
     dense_layer = tf.keras.layers.Dense(3)
-    q_net = KerasLayersNet(
-        self._observation_spec[0], self._action_spec, dense_layer)
+    q_net = networks_test_utils.KerasLayersNet(self._observation_spec[0],
+                                               self._action_spec,
+                                               dense_layer)
     with self.assertRaisesRegexp(
         ValueError, 'shares weights with the original network'):
       agent_class(
@@ -113,8 +104,9 @@ class DqnAgentTest(test_utils.TestCase):
           optimizer=None)
 
     # Explicitly share weights between q and target networks; this is ok.
-    q_target_net = KerasLayersNet(
-        self._observation_spec[0], self._action_spec, dense_layer)
+    q_target_net = networks_test_utils.KerasLayersNet(self._observation_spec[0],
+                                                      self._action_spec,
+                                                      dense_layer)
     agent_class(
         self._time_step_spec,
         self._action_spec,
