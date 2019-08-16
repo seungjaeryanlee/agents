@@ -101,6 +101,8 @@ def main(_):
   train_eval(
       FLAGS.root_dir,
       env_name=FLAGS.env_name,
+      env_load_fn=suite_gym.load,
+      gym_env_wrappers=DEFAULT_ATARI_GYM_WRAPPERS_WITH_STACKING,
       use_rnns=FLAGS.use_rnns,
       use_rnd=FLAGS.use_rnd,
       num_environment_steps=FLAGS.num_environment_steps,
