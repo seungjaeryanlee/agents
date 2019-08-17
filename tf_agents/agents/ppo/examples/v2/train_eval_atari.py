@@ -68,36 +68,6 @@ from tf_agents.utils import common
 from train_eval import train_eval
 
 
-flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
-                    'Root directory for writing logs/summaries/checkpoints.')
-flags.DEFINE_string('env_name', 'PongDeterministic-v0', 'Name of an environment')
-flags.DEFINE_integer('random_seed', 0, 'Random seed')
-flags.DEFINE_integer('replay_buffer_capacity', 18001,
-                     'Replay buffer capacity per env.')
-flags.DEFINE_integer('num_parallel_environments', 16,
-                     'Number of environments to run in parallel')
-flags.DEFINE_integer('num_environment_steps', 2000000000,
-                     'Number of environment steps to run before finishing.')
-flags.DEFINE_integer('num_epochs', 4,
-                     'Number of epochs for computing policy updates.')
-flags.DEFINE_integer(
-    'collect_episodes_per_iteration', 16,
-    'The number of episodes to take in the environment before '
-    'each update. This is the total across all parallel '
-    'environments.')
-flags.DEFINE_integer('num_eval_episodes', 30,
-                     'The number of episodes to run eval on.')
-flags.DEFINE_boolean('use_rnns', False,
-                     'If true, use RNN for policy and value function.')
-flags.DEFINE_boolean('use_rnd', False,
-                     'If true, use RND for reward shaping.')
-flags.DEFINE_integer('norm_init_episodes', 5,
-                    'The number of episodes to initialize the normalizers.')
-flags.DEFINE_multi_string('gin_file', None, 'Paths to the gin-config files.')
-flags.DEFINE_multi_string('gin_param', None, 'Gin binding parameters.')
-FLAGS = flags.FLAGS
-
-
 def main(_):
   logging.set_verbosity(logging.INFO)
   tf.compat.v1.enable_v2_behavior()
@@ -126,5 +96,33 @@ def main(_):
 
 
 if __name__ == '__main__':
+  flags.DEFINE_string('root_dir', os.getenv('TEST_UNDECLARED_OUTPUTS_DIR'),
+                      'Root directory for writing logs/summaries/checkpoints.')
+  flags.DEFINE_string('env_name', 'PongDeterministic-v0', 'Name of an environment')
+  flags.DEFINE_integer('random_seed', 0, 'Random seed')
+  flags.DEFINE_integer('replay_buffer_capacity', 18001,
+                      'Replay buffer capacity per env.')
+  flags.DEFINE_integer('num_parallel_environments', 16,
+                      'Number of environments to run in parallel')
+  flags.DEFINE_integer('num_environment_steps', 2000000000,
+                      'Number of environment steps to run before finishing.')
+  flags.DEFINE_integer('num_epochs', 4,
+                      'Number of epochs for computing policy updates.')
+  flags.DEFINE_integer(
+      'collect_episodes_per_iteration', 16,
+      'The number of episodes to take in the environment before '
+      'each update. This is the total across all parallel '
+      'environments.')
+  flags.DEFINE_integer('num_eval_episodes', 30,
+                      'The number of episodes to run eval on.')
+  flags.DEFINE_boolean('use_rnns', False,
+                      'If true, use RNN for policy and value function.')
+  flags.DEFINE_boolean('use_rnd', False,
+                      'If true, use RND for reward shaping.')
+  flags.DEFINE_integer('norm_init_episodes', 5,
+                      'The number of episodes to initialize the normalizers.')
+  flags.DEFINE_multi_string('gin_file', None, 'Paths to the gin-config files.')
+  flags.DEFINE_multi_string('gin_param', None, 'Gin binding parameters.')
+  FLAGS = flags.FLAGS
   flags.mark_flag_as_required('root_dir')
   app.run(main)
