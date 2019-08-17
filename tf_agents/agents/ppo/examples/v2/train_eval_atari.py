@@ -93,12 +93,15 @@ flags.DEFINE_boolean('use_rnd', False,
                      'If true, use RND for reward shaping.')
 flags.DEFINE_integer('norm_init_episodes', 5,
                     'The number of episodes to initialize the normalizers.')
+flags.DEFINE_multi_string('gin_file', None, 'Paths to the gin-config files.')
+flags.DEFINE_multi_string('gin_param', None, 'Gin binding parameters.')
 FLAGS = flags.FLAGS
 
 
 def main(_):
   logging.set_verbosity(logging.INFO)
   tf.compat.v1.enable_v2_behavior()
+  gin.parse_config_files_and_bindings(FLAGS.gin_file, FLAGS.gin_param)
   train_eval(
       FLAGS.root_dir,
       env_name=FLAGS.env_name,
