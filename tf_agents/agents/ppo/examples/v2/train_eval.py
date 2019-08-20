@@ -88,7 +88,7 @@ def train_eval(
     num_parallel_environments=30,
     replay_buffer_capacity=1001,  # Per-environment
     # Params for train
-    norm_init_episodes=0,
+    norm_init_episodes=5,
     num_epochs=25,
     learning_rate=1e-4,
     # Params for eval
@@ -216,21 +216,19 @@ def train_eval(
         num_episodes=collect_episodes_per_iteration)
 
     # Initialize normalization parameters with random trajectories
-    for _ in range(norm_init_episodes):
-      init_replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
-          tf_agent.collect_data_spec,
-          batch_size=num_parallel_environments,
-          max_length=replay_buffer_capacity)
-      init_collect_driver = dynamic_episode_driver.DynamicEpisodeDriver(
-          tf_env,
-          collect_policy,
-          observers=[init_replay_buffer.add_batch],
-          num_episodes=collect_episodes_per_iteration)
-
-      init_collect_driver.run()
-      trajectories = init_replay_buffer.gather_all()
-      tf_agent.init_normalizer(experience=trajectories)
-      init_replay_buffer.clear()
+    init_replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
+        tf_agent.collect_data_spec,
+        batch_size=num_parallel_environments,
+        max_length=replay_buffer_capacity)
+    init_collect_driver = dynamic_episode_driver.DynamicEpisodeDriver(
+        tf_env,
+        collect_policy,
+        observers=[init_replay_buffer.add_batch],
+        num_episodes=norm_init_episodes)
+    init_collect_driver.run()
+    trajectories = init_replay_buffer.gather_all()
+    tf_agent.init_normalizer(experience=trajectories)
+    init_replay_buffer.clear()
 
     def train_step():
       trajectories = replay_buffer.gather_all()
