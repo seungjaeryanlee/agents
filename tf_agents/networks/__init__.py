@@ -21,7 +21,6 @@ from tf_agents.networks import bias_layer
 from tf_agents.networks import categorical_projection_network
 from tf_agents.networks import dynamic_unroll_layer
 from tf_agents.networks import encoding_network
-from tf_agents.networks import expand_dims_layer
 from tf_agents.networks import lstm_encoding_network
 from tf_agents.networks import network
 from tf_agents.networks import normal_projection_network

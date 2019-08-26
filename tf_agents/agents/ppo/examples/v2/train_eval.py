@@ -323,24 +323,24 @@ if __name__ == '__main__':
   flags.DEFINE_integer('random_seed', 0, 'Random seed')
   flags.DEFINE_integer('replay_buffer_capacity', 1001,
                       'Replay buffer capacity per env.')
-  flags.DEFINE_integer('num_parallel_environments', 30,
+  flags.DEFINE_integer('num_parallel_environments', 4,
                       'Number of environments to run in parallel')
-  flags.DEFINE_integer('num_environment_steps', 10000000,
+  flags.DEFINE_integer('num_environment_steps', 1000000,
                       'Number of environment steps to run before finishing.')
-  flags.DEFINE_integer('num_epochs', 25,
+  flags.DEFINE_integer('num_epochs', 1,
                       'Number of epochs for computing policy updates.')
   flags.DEFINE_integer(
-      'collect_episodes_per_iteration', 30,
+      'collect_episodes_per_iteration', 4,
       'The number of episodes to take in the environment before '
       'each update. This is the total across all parallel '
       'environments.')
-  flags.DEFINE_integer('num_eval_episodes', 30,
+  flags.DEFINE_integer('num_eval_episodes', 1,
                       'The number of episodes to run eval on.')
   flags.DEFINE_boolean('use_rnns', False,
                       'If true, use RNN for policy and value function.')
   flags.DEFINE_boolean('use_rnd', False,
                       'If true, use RND for reward shaping.')
-  flags.DEFINE_integer('norm_init_episodes', 5,
+  flags.DEFINE_integer('norm_init_episodes', 0,
                       'The number of episodes to initialize the normalizers.')
   flags.DEFINE_multi_string('gin_file', None, 'Paths to the gin-config files.')
   flags.DEFINE_multi_string('gin_param', None, 'Gin binding parameters.')

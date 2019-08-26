@@ -15,8 +15,6 @@
 
 """Replay Buffers Module."""
 
-from tf_agents.replay_buffers import py_hashed_replay_buffer
-from tf_agents.replay_buffers import py_uniform_replay_buffer
 from tf_agents.replay_buffers import replay_buffer
 from tf_agents.replay_buffers import table
 from tf_agents.replay_buffers import tf_uniform_replay_buffer

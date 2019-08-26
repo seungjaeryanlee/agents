@@ -17,5 +17,4 @@
 
 from tf_agents.drivers import driver
 from tf_agents.drivers import dynamic_episode_driver
-from tf_agents.drivers import dynamic_step_driver
 from tf_agents.drivers import py_driver
