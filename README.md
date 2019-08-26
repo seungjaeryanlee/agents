@@ -1,6 +1,8 @@
 # Google Summer of Code 2019 with TensorFlow: Random Network Distillation
 
-This branch is a fork of TF-Agents to showcase my work during Google Summer of Code 2019 with TensorFlow. All unrelated files in TF-Agents have been removed.
+This branch is a fork of TF-Agents to showcase my work during Google Summer of Code 2019 with TensorFlow.
+
+To avoid confusion, this branch is kept minimal, removing all unneeded files.
 
 **For a more comprehensive review, [check my blog series!](https://www.endtoend.ai/blog/tags/gsoc/)**
 
