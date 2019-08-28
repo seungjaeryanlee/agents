@@ -20,6 +20,7 @@ from __future__ import division
 from __future__ import print_function
 
 import gin
+import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
@@ -28,7 +29,6 @@ from tf_agents.specs import tensor_spec
 from tf_agents.trajectories import policy_step
 from tf_agents.trajectories import time_step as ts
 from tf_agents.utils import common
-from tf_agents.utils import nest_utils
 
 
 @gin.configurable()
@@ -80,65 +80,6 @@ class CategoricalQPolicy(tf_policy.Base):
   def _variables(self):
     return self._q_network.variables
 
-  @gin.configurable(module='CategoricalQPolicy')
-  def _action(self, time_step, policy_state, seed=None):
-    """Generates next action given the time_step and optional policy_state.
-
-    Args:
-      time_step: A `TimeStep` tuple corresponding to `time_step_spec()`.
-      policy_state: A Tensor, or a nested dict, list or tuple of
-        Tensors representing the previous policy_state.
-      seed: Seed to use if action performs sampling (optional).
-
-    Returns:
-      An action Tensor, or a nested dict, list or tuple of Tensors,
-        matching the `action_spec()`.
-      A policy_state Tensor, or a nested dict, list or tuple of Tensors,
-        representing the new policy state.
-    """
-    batched_time_step = nest_utils.batch_nested_tensors(time_step,
-                                                        self.time_step_spec)
-    q_logits, policy_state = self._q_network(batched_time_step.observation,
-                                             batched_time_step.step_type,
-                                             policy_state)
-    q_logits.shape.assert_has_rank(3)
-    q_values = common.convert_q_logits_to_values(q_logits, self._support)
-    actions = tf.argmax(q_values, -1)
-    actions = tf.cast(actions, self._action_dtype, name='action')
-    actions = tf.nest.pack_sequence_as(self._action_spec, [actions])
-    return policy_step.PolicyStep(actions, policy_state)
-
-  @gin.configurable(module='CategoricalQPolicy')
-  def step(self, time_step, policy_state=(), num_samples=1):
-    """Generates a random action given the time_step and policy_state.
-
-    Args:
-      time_step: A `TimeStep` tuple corresponding to `time_step_spec()`.
-      policy_state: A Tensor, or a nested dict, list or tuple of
-        Tensors representing the previous policy_state.
-      num_samples: Integer, number of samples per time_step.
-
-    Returns:
-      An action Tensor, or a nested dict, list or tuple of Tensors,
-        matching the `action_spec()`.
-      A policy_state Tensor, or a nested dict, list or tuple of Tensors,
-        representing the new policy state.
-    """
-    batched_time_step = nest_utils.batch_nested_tensors(time_step,
-                                                        self.time_step_spec)
-    q_logits, policy_state = self._q_network(batched_time_step.observation,
-                                             batched_time_step.step_type,
-                                             policy_state)
-    q_logits.shape.assert_has_rank(3)
-    q_values = common.convert_q_logits_to_values(q_logits, self._support)
-    logits = q_values / self._temperature
-    actions = tf.random.categorical(logits, num_samples)
-    if num_samples == 1:
-      actions = tf.squeeze(actions, [-1])
-    actions = tf.cast(actions, self._action_dtype, name='step')
-    actions = tf.nest.pack_sequence_as(self._action_spec, [actions])
-    return actions, policy_state
-
   def _distribution(self, time_step, policy_state):
     """Generates the distribution over next actions given the time_step.
 
@@ -158,7 +99,16 @@ class CategoricalQPolicy(tf_policy.Base):
                                              policy_state)
     q_logits.shape.assert_has_rank(3)
     q_values = common.convert_q_logits_to_values(q_logits, self._support)
-    return policy_step.PolicyStep(
-        tfp.distributions.Categorical(logits=q_values,
-                                      dtype=self.action_spec.dtype),
-        policy_state)
+
+    logits = q_values
+    mask_split_fn = self._q_network.mask_split_fn
+
+    if mask_split_fn:
+      _, mask = mask_split_fn(time_step.observation)
+      # Overwrite the logits for invalid actions to -inf.
+      neg_inf = tf.constant(-np.inf, dtype=logits.dtype)
+      logits = tf.compat.v2.where(tf.cast(mask, tf.bool), logits, neg_inf)
+
+    dist = tfp.distributions.Categorical(
+        logits=logits, dtype=self.action_spec.dtype)
+    return policy_step.PolicyStep(dist, policy_state)

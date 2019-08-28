@@ -45,7 +45,6 @@ class DummyNet(network.Network):
                name=None):
     super(DummyNet, self).__init__(
         observation_spec, state_spec=(), name=name, mask_split_fn=mask_split_fn)
-    action_spec = tf.nest.flatten(action_spec)[0]
     num_actions = action_spec.maximum - action_spec.minimum + 1
     self._layers.append(
         tf.keras.layers.Dense(
@@ -61,7 +60,7 @@ class DummyNet(network.Network):
 
     if mask_split_fn:
       # Extract the network-specific portion of the observation.
-      inputs = self._mask_split_fn(inputs)[0]
+      inputs, _ = self._mask_split_fn(inputs)
 
     inputs = tf.cast(inputs[0], tf.float32)
     for layer in self.layers:
@@ -138,19 +137,8 @@ class DqnAgentTest(test_utils.TestCase):
         common.initialize_uninitialized_variables(sess)
         self.assertIsNone(sess.run(init_op))
 
-  def testCreateAgentNestSizeChecks(self, agent_class):
-    action_spec = [
-        tensor_spec.BoundedTensorSpec([1], tf.int32, 0, 1),
-        tensor_spec.BoundedTensorSpec([1], tf.int32, 0, 1)
-    ]
-
-    q_net = DummyNet(self._observation_spec, action_spec)
-    with self.assertRaisesRegexp(ValueError, '.*one dimensional.*'):
-      agent_class(
-          self._time_step_spec, action_spec, q_network=q_net, optimizer=None)
-
   def testCreateAgentDimChecks(self, agent_class):
-    action_spec = [tensor_spec.BoundedTensorSpec([1, 2], tf.int32, 0, 1)]
+    action_spec = tensor_spec.BoundedTensorSpec([1, 2], tf.int32, 0, 1)
     q_net = DummyNet(self._observation_spec, action_spec)
     with self.assertRaisesRegexp(ValueError, '.*one dimensional.*'):
       agent_class(
@@ -400,7 +388,7 @@ class DqnAgentTest(test_utils.TestCase):
         q_network=q_net,
         optimizer=None)
 
-    # For observations, the masks are set up so that all actions are valid.
+    # For `observations`, the masks are set up so that all actions are valid.
     observations = ([tf.constant([[1, 2], [3, 4]], dtype=tf.float32)],
                     tf.constant([[1, 1], [1, 1]], dtype=tf.int32))
     time_steps = ts.restart(observations, batch_size=2)
@@ -411,7 +399,7 @@ class DqnAgentTest(test_utils.TestCase):
     rewards = tf.constant([10, 20], dtype=tf.float32)
     discounts = tf.constant([0.9, 0.9], dtype=tf.float32)
 
-    # For next_observations, the masks are set up so that only one action is
+    # For `next_observations`, the masks are set up so that only one action is
     # valid for each element in the batch.
     next_observations = ([tf.constant([[5, 6], [7, 8]], dtype=tf.float32)],
                          tf.constant([[0, 1], [1, 0]], dtype=tf.int32))
@@ -459,8 +447,8 @@ class DqnAgentTest(test_utils.TestCase):
                         [2] + self._action_spec.shape.as_list())
     self.evaluate(tf.compat.v1.global_variables_initializer())
     actions_ = self.evaluate(action_step.action)
-    self.assertTrue(all(actions_[0] <= self._action_spec.maximum))
-    self.assertTrue(all(actions_[0] >= self._action_spec.minimum))
+    self.assertTrue(all(actions_ <= self._action_spec.maximum))
+    self.assertTrue(all(actions_ >= self._action_spec.minimum))
 
   def testInitializeRestoreAgent(self, agent_class):
     q_net = DummyNet(self._observation_spec, self._action_spec)
